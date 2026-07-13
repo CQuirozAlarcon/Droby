@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "ERP Accesorios",
+    "slug": "erp-accesorios",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "erpaccesorios",
+    "backgroundColor": "#0F172A",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tuempresa.erpaccesorios",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Se usa el micrófono para comandos de voz (marcar asistencia, registrar ventas, consultar stock)."
+      }
+    },
+    "android": {
+      "package": "com.tuempresa.erpaccesorios",
+      "permissions": ["RECORD_AUDIO"]
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "extra": {
+      "router": { "origin": false }
+    }
+  }
+}
