@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, TextInput, Alert, Modal } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, TextInput, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, radius, spacing } from '@/lib/theme';
 import { useEmpleados } from '@/hooks/useRRHH';
 import { EmptyState } from '@/components/EmptyState';
+import { showAlert } from '@/lib/alert';
 
 export default function EmpleadosScreen() {
   const router = useRouter();
@@ -15,8 +16,8 @@ export default function EmpleadosScreen() {
 
   async function handleCrear() {
     const salario = parseFloat(salarioHora);
-    if (!nombre.trim()) return Alert.alert('Falta el nombre');
-    if (!salario || salario <= 0) return Alert.alert('Salario por hora inválido');
+    if (!nombre.trim()) return showAlert('Falta el nombre');
+    if (!salario || salario <= 0) return showAlert('Salario por hora inválido');
 
     setGuardando(true);
     try {
@@ -25,7 +26,7 @@ export default function EmpleadosScreen() {
       setSalarioHora('');
       setModalVisible(false);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showAlert('Error', e.message);
     } finally {
       setGuardando(false);
     }

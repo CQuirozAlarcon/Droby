@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, Alert, Modal, TextInput } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, FlatList, StyleSheet, Pressable, Modal, TextInput } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { colors, radius, spacing } from '@/lib/theme';
 import { useEmpleados, useAsistencia } from '@/hooks/useRRHH';
 import { EmptyState } from '@/components/EmptyState';
+import { showAlert, showConfirm } from '@/lib/alert';
 
 function fechaHoyStr(): string {
   return new Date().toISOString().split('T')[0];
@@ -16,6 +17,10 @@ function horaAhoraStr(): string {
 export default function AsistenciaScreen() {
   const { empleados } = useEmpleados();
   const [empleadoId, setEmpleadoId] = useState<number | null>(empleados[0]?.id ?? null);
+
+  useEffect(() => {
+    if (empleadoId === null && empleados.length > 0) setEmpleadoId(empleados[0].id);
+  }, [empleados, empleadoId]);
   const { registros, marcarAsistencia, eliminarAsistencia } = useAsistencia(empleadoId ?? undefined);
   const [procesando, setProcesando] = useState<'entrada' | 'salida' | null>(null);
 
@@ -26,12 +31,12 @@ export default function AsistenciaScreen() {
   const [guardandoManual, setGuardandoManual] = useState(false);
 
   async function handleMarcar(tipo: 'entrada' | 'salida') {
-    if (!empleadoId) return Alert.alert('Selecciona un empleado');
+    if (!empleadoId) return showAlert('Selecciona un empleado');
     setProcesando(tipo);
     try {
       await marcarAsistencia(empleadoId, tipo, 'manual');
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showAlert('Error', e.message);
     } finally {
       setProcesando(null);
     }
@@ -45,9 +50,9 @@ export default function AsistenciaScreen() {
   }
 
   async function handleGuardarManual() {
-    if (!empleadoId) return Alert.alert('Selecciona un empleado');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaManual)) return Alert.alert('Formato de fecha inválido', 'Usa YYYY-MM-DD');
-    if (!/^\d{2}:\d{2}$/.test(horaManual)) return Alert.alert('Formato de hora inválido', 'Usa HH:MM (24h)');
+    if (!empleadoId) return showAlert('Selecciona un empleado');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaManual)) return showAlert('Formato de fecha inválido', 'Usa YYYY-MM-DD');
+    if (!/^\d{2}:\d{2}$/.test(horaManual)) return showAlert('Formato de hora inválido', 'Usa HH:MM (24h)');
 
     const timestampISO = new Date(`${fechaManual}T${horaManual}:00`).toISOString();
     setGuardandoManual(true);
@@ -55,34 +60,27 @@ export default function AsistenciaScreen() {
       await marcarAsistencia(empleadoId, tipoManual, 'manual', timestampISO);
       setModalManual(false);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showAlert('Error', e.message);
     } finally {
       setGuardandoManual(false);
     }
   }
 
   function handleEliminar(registroId: number) {
-    Alert.alert('Eliminar registro', '¿Seguro que quieres borrar este marcaje? Esta acción no se puede deshacer.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await eliminarAsistencia(registroId);
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
-          }
-        },
-      },
-    ]);
+    showConfirm('Eliminar registro', '¿Seguro que quieres borrar este marcaje? Esta acción no se puede deshacer.', async () => {
+      try {
+        await eliminarAsistencia(registroId);
+      } catch (e: any) {
+        showAlert('Error', e.message);
+      }
+    });
   }
 
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Empleado</Text>
       <View style={styles.pickerWrapper}>
-        <Picker selectedValue={empleadoId} onValueChange={setEmpleadoId} dropdownIconColor={colors.text}>
+        <Picker selectedValue={empleadoId ?? undefined} onValueChange={(v) => setEmpleadoId(Number(v))} dropdownIconColor={colors.text}>
           {empleados.map((e) => (
             <Picker.Item key={e.id} label={e.nombre} value={e.id} color={colors.text} />
           ))}

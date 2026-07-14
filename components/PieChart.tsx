@@ -58,8 +58,7 @@ export function PieChart({ segmentos, size = 130, strokeWidth = 18, centroLabel,
             fill="none"
             strokeDasharray={arco.dashArray}
             strokeLinecap="butt"
-            origin={`${size / 2}, ${size / 2}`}
-            rotation={arco.rotacion - 90}
+            transform={`rotate(${arco.rotacion - 90} ${size / 2} ${size / 2})`}
           />
         ))}
       </Svg>

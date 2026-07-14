@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, TextInput, Alert, Modal } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, TextInput, Modal } from 'react-native';
 import { colors, radius, spacing } from '@/lib/theme';
 import { useFinanzas } from '@/hooks/useFinanzas';
 import { useAuth } from '@/hooks/useAuth';
 import { EmptyState } from '@/components/EmptyState';
 import { CajaDestino } from '@/types/database';
+import { showAlert } from '@/lib/alert';
 
 type ModalTipo = 'gasto' | 'ingreso' | 'transferencia' | null;
 
@@ -26,7 +27,7 @@ export default function FinanzasScreen() {
 
   async function handleGastoOIngreso() {
     const m = parseFloat(monto);
-    if (!m || m <= 0) return Alert.alert('Monto inválido');
+    if (!m || m <= 0) return showAlert('Monto inválido');
     setProcesando(true);
     try {
       const tipo = modalVisible === 'ingreso' ? 'ingreso' : 'egreso';
@@ -34,7 +35,7 @@ export default function FinanzasScreen() {
       await registrarMovimientoManual(caja, tipo, m, categoria, descripcion || (tipo === 'ingreso' ? 'Ingreso extra' : 'Gasto'));
       cerrarModal();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showAlert('Error', e.message);
     } finally {
       setProcesando(false);
     }
@@ -42,13 +43,13 @@ export default function FinanzasScreen() {
 
   async function handleTransferencia() {
     const m = parseFloat(monto);
-    if (!m || m <= 0) return Alert.alert('Monto inválido');
+    if (!m || m <= 0) return showAlert('Monto inválido');
     setProcesando(true);
     try {
       await transferirEntreCajas(caja, destino, m, descripcion || 'Transferencia interna');
       cerrarModal();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showAlert('Error', e.message);
     } finally {
       setProcesando(false);
     }

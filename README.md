@@ -25,7 +25,15 @@ npx expo start
 ```
 Escanea el QR con Expo Go (Android) o la app Cámara (iOS).
 
-## 4. Generar APK/IPA (gratis, EAS free tier)
+## ⚠️ Regla importante para evitar crashes en Android/iOS
+
+Cada vez que se agregue una librería que tenga código nativo (cualquier paquete que empiece con `expo-` o `react-native-`, como `react-native-svg`, `@react-native-async-storage/async-storage`, `expo-audio`, etc.), **nunca uses `npm install <paquete>` a secas**. Usa siempre:
+```bash
+npx expo install <paquete>
+```
+Esto asegura que se descargue la versión exacta compatible con la versión de Expo Go instalada. Si se usa `npm install` normal, puede bajar una versión más nueva que no coincide con el binario nativo que Expo Go ya trae precompilado, y la app crashea al abrir con errores como "Failed to download remote update" o "Cannot find native module".
+
+## 5. Generar APK/IPA (gratis, EAS free tier)
 ```bash
 npm install -g eas-cli
 eas login

@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, FlatList, Alert } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet, FlatList } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { colors, radius, spacing } from '@/lib/theme';
 import { useEmpleados, useNomina } from '@/hooks/useRRHH';
 import { EmptyState } from '@/components/EmptyState';
+import { showAlert } from '@/lib/alert';
 
 // Calcula el lunes de la semana actual en formato YYYY-MM-DD
 function lunesDeEstaSemana(): string {
@@ -18,6 +19,10 @@ function lunesDeEstaSemana(): string {
 export default function NominaScreen() {
   const { empleados } = useEmpleados();
   const [empleadoId, setEmpleadoId] = useState<number | null>(empleados[0]?.id ?? null);
+
+  useEffect(() => {
+    if (empleadoId === null && empleados.length > 0) setEmpleadoId(empleados[0].id);
+  }, [empleados, empleadoId]);
   const { nominas, generarNomina, marcarPagada } = useNomina();
   const [semanaInicio, setSemanaInicio] = useState(lunesDeEstaSemana());
   const [generando, setGenerando] = useState(false);
@@ -27,16 +32,16 @@ export default function NominaScreen() {
   }
 
   async function handleGenerar() {
-    if (!empleadoId) return Alert.alert('Selecciona un empleado');
+    if (!empleadoId) return showAlert('Selecciona un empleado');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(semanaInicio)) {
-      return Alert.alert('Fecha inválida', 'Formato requerido: YYYY-MM-DD (debe ser un lunes)');
+      return showAlert('Fecha inválida', 'Formato requerido: YYYY-MM-DD (debe ser un lunes)');
     }
     setGenerando(true);
     try {
       await generarNomina(empleadoId, semanaInicio);
-      Alert.alert('Nómina generada', 'Horas calculadas y adelantos pendientes descontados automáticamente.');
+      showAlert('Nómina generada', 'Horas calculadas y adelantos pendientes descontados automáticamente.');
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showAlert('Error', e.message);
     } finally {
       setGenerando(false);
     }
@@ -46,7 +51,7 @@ export default function NominaScreen() {
     try {
       await marcarPagada(nominaId);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showAlert('Error', e.message);
     }
   }
 
@@ -54,7 +59,7 @@ export default function NominaScreen() {
     <View style={styles.container}>
       <Text style={styles.label}>Empleado</Text>
       <View style={styles.pickerWrapper}>
-        <Picker selectedValue={empleadoId} onValueChange={setEmpleadoId} dropdownIconColor={colors.text}>
+        <Picker selectedValue={empleadoId ?? undefined} onValueChange={(v) => setEmpleadoId(Number(v))} dropdownIconColor={colors.text}>
           {empleados.map((e) => (
             <Picker.Item key={e.id} label={e.nombre} value={e.id} color={colors.text} />
           ))}

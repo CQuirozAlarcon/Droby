@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, FlatList } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, FlatList } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { colors, radius, spacing } from '@/lib/theme';
@@ -7,6 +7,7 @@ import { useInventario } from '@/hooks/useInventario';
 import { useVentas } from '@/hooks/useVentas';
 import { supabase } from '@/lib/supabase';
 import { VentaItemInput } from '@/types/database';
+import { showAlert } from '@/lib/alert';
 
 interface ItemCarrito extends VentaItemInput {
   modelo: string;
@@ -33,6 +34,15 @@ export default function NuevaVentaScreen() {
     if (producto) setPrecioUnitario(String(producto.precio_unitario));
   }, [productoSeleccionado, productos]);
 
+  // productos carga de forma asíncrona; si al montar el componente aún
+  // estaba vacío, productoSeleccionado se quedaría en null para siempre
+  // sin este efecto (aunque el Picker visualmente muestre una opción).
+  useEffect(() => {
+    if (productoSeleccionado === null && productos.length > 0) {
+      setProductoSeleccionado(productos[0].id);
+    }
+  }, [productos, productoSeleccionado]);
+
   const total = items.reduce((acc, it) => acc + it.cantidad * it.precio_unitario, 0);
 
   function agregarItem() {
@@ -40,15 +50,15 @@ export default function NuevaVentaScreen() {
     const precio = parseFloat(precioUnitario);
     const producto = productos.find((p) => p.id === productoSeleccionado);
     if (!producto || !cant || cant <= 0) {
-      Alert.alert('Datos inválidos', 'Selecciona un producto y una cantidad válida');
+      showAlert('Datos inválidos', 'Selecciona un producto y una cantidad válida');
       return;
     }
     if (!precio || precio <= 0) {
-      Alert.alert('Precio inválido', 'Ingresa un precio unitario válido');
+      showAlert('Precio inválido', 'Ingresa un precio unitario válido');
       return;
     }
     if (cant > producto.stock_actual) {
-      Alert.alert('Stock insuficiente', `Solo hay ${producto.stock_actual} unidades de ${producto.modelo}`);
+      showAlert('Stock insuficiente', `Solo hay ${producto.stock_actual} unidades de ${producto.modelo}`);
       return;
     }
     setItems((prev) => [
@@ -64,11 +74,11 @@ export default function NuevaVentaScreen() {
 
   async function handleConfirmar() {
     if (!clienteNombre.trim()) {
-      Alert.alert('Falta el cliente', 'Ingresa el nombre del cliente');
+      showAlert('Falta el cliente', 'Ingresa el nombre del cliente');
       return;
     }
     if (items.length === 0) {
-      Alert.alert('Carrito vacío', 'Agrega al menos un producto');
+      showAlert('Carrito vacío', 'Agrega al menos un producto');
       return;
     }
 
@@ -99,10 +109,10 @@ export default function NuevaVentaScreen() {
         'empresa'
       );
 
-      Alert.alert('Venta registrada', `Total: S/ ${total.toFixed(2)}`);
+      showAlert('Venta registrada', `Total: S/ ${total.toFixed(2)}`);
       router.back();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showAlert('Error', e.message);
     } finally {
       setGuardando(false);
     }
@@ -127,8 +137,8 @@ export default function NuevaVentaScreen() {
 
         <View style={styles.pickerWrapper}>
           <Picker
-            selectedValue={productoSeleccionado}
-            onValueChange={(v) => setProductoSeleccionado(v)}
+            selectedValue={productoSeleccionado ?? undefined}
+            onValueChange={(v) => setProductoSeleccionado(Number(v))}
             dropdownIconColor={colors.text}
           >
             {productos.map((p) => (

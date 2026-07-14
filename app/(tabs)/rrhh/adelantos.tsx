@@ -1,13 +1,18 @@
-import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, FlatList, Alert } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet, FlatList } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { colors, radius, spacing } from '@/lib/theme';
 import { useEmpleados, useAdelantos } from '@/hooks/useRRHH';
 import { EmptyState } from '@/components/EmptyState';
+import { showAlert } from '@/lib/alert';
 
 export default function AdelantosScreen() {
   const { empleados } = useEmpleados();
   const [empleadoId, setEmpleadoId] = useState<number | null>(empleados[0]?.id ?? null);
+
+  useEffect(() => {
+    if (empleadoId === null && empleados.length > 0) setEmpleadoId(empleados[0].id);
+  }, [empleados, empleadoId]);
   const { adelantos, registrarAdelanto } = useAdelantos();
   const [monto, setMonto] = useState('');
   const [motivo, setMotivo] = useState('');
@@ -15,17 +20,17 @@ export default function AdelantosScreen() {
 
   async function handleRegistrar() {
     const m = parseFloat(monto);
-    if (!empleadoId) return Alert.alert('Selecciona un empleado');
-    if (!m || m <= 0) return Alert.alert('Monto inválido');
+    if (!empleadoId) return showAlert('Selecciona un empleado');
+    if (!m || m <= 0) return showAlert('Monto inválido');
 
     setGuardando(true);
     try {
       await registrarAdelanto(empleadoId, m, motivo || 'Adelanto de sueldo');
       setMonto('');
       setMotivo('');
-      Alert.alert('Adelanto registrado', 'Se descontará automáticamente en la próxima nómina semanal.');
+      showAlert('Adelanto registrado', 'Se descontará automáticamente en la próxima nómina semanal.');
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showAlert('Error', e.message);
     } finally {
       setGuardando(false);
     }
@@ -39,7 +44,7 @@ export default function AdelantosScreen() {
     <View style={styles.container}>
       <Text style={styles.label}>Empleado</Text>
       <View style={styles.pickerWrapper}>
-        <Picker selectedValue={empleadoId} onValueChange={setEmpleadoId} dropdownIconColor={colors.text}>
+        <Picker selectedValue={empleadoId ?? undefined} onValueChange={(v) => setEmpleadoId(Number(v))} dropdownIconColor={colors.text}>
           {empleados.map((e) => (
             <Picker.Item key={e.id} label={e.nombre} value={e.id} color={colors.text} />
           ))}

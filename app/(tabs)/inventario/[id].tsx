@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { colors, radius, spacing } from '@/lib/theme';
 import { useInventario } from '@/hooks/useInventario';
+import { showAlert } from '@/lib/alert';
 
 export default function DetalleProductoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -39,11 +40,11 @@ export default function DetalleProductoScreen() {
   }
 
   async function guardarEdicion() {
-    if (!modeloEdit.trim()) return Alert.alert('El modelo no puede estar vacío');
+    if (!modeloEdit.trim()) return showAlert('El modelo no puede estar vacío');
     const precioNum = parseFloat(precioEdit);
     const costoNum = parseFloat(costoEdit);
     const stockMinNum = parseInt(stockMinimoEdit, 10);
-    if (!precioNum || !costoNum) return Alert.alert('Precio y costo deben ser números válidos');
+    if (!precioNum || !costoNum) return showAlert('Precio y costo deben ser números válidos');
 
     setGuardandoEdicion(true);
     try {
@@ -56,7 +57,7 @@ export default function DetalleProductoScreen() {
       });
       setEditando(false);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showAlert('Error', e.message);
     } finally {
       setGuardandoEdicion(false);
     }
@@ -65,7 +66,7 @@ export default function DetalleProductoScreen() {
   async function ajustar(signo: 1 | -1) {
     const cant = parseInt(cantidad, 10);
     if (!cant || cant <= 0) {
-      Alert.alert('Cantidad inválida', 'Ingresa un número mayor a 0');
+      showAlert('Cantidad inválida', 'Ingresa un número mayor a 0');
       return;
     }
     setProcesando(true);
@@ -74,7 +75,7 @@ export default function DetalleProductoScreen() {
       setCantidad('');
       setNota('');
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showAlert('Error', e.message);
     } finally {
       setProcesando(false);
     }

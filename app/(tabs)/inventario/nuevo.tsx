@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { colors, radius, spacing, MODELOS_IPHONE } from '@/lib/theme';
 import { useInventario } from '@/hooks/useInventario';
 import { TipoProducto } from '@/types/database';
+import { showAlert } from '@/lib/alert';
 
 const OTRO_MODELO = '__OTRO__';
 
@@ -27,11 +28,11 @@ export default function NuevoProductoScreen() {
 
   async function handleGuardar() {
     if (!precio || !costo) {
-      Alert.alert('Faltan datos', 'Precio y costo son obligatorios');
+      showAlert('Faltan datos', 'Precio y costo son obligatorios');
       return;
     }
     if (!modeloFinal) {
-      Alert.alert('Falta el modelo', 'Escribe el nombre del modelo');
+      showAlert('Falta el modelo', 'Escribe el nombre del modelo');
       return;
     }
     setGuardando(true);
@@ -47,7 +48,7 @@ export default function NuevoProductoScreen() {
       });
       router.back();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showAlert('Error', e.message);
     } finally {
       setGuardando(false);
     }

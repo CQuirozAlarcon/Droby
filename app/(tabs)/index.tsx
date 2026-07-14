@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, FlatList, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import * as Speech from 'expo-speech';
@@ -12,6 +12,7 @@ import { useFinanzas } from '@/hooks/useFinanzas';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { PieChart } from '@/components/PieChart';
+import { showAlert } from '@/lib/alert';
 
 interface MensajeChat {
   id: string;
@@ -62,14 +63,14 @@ export default function DashboardScreen() {
     try {
       const status = await AudioModule.requestRecordingPermissionsAsync();
       if (!status.granted) {
-        Alert.alert('Permiso denegado', 'Se necesita acceso al micrófono');
+        showAlert('Permiso denegado', 'Se necesita acceso al micrófono');
         return;
       }
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
       setGrabando(true);
     } catch (e: any) {
-      Alert.alert('Error al grabar', e.message);
+      showAlert('Error al grabar', e.message);
     }
   }
 
@@ -78,7 +79,7 @@ export default function DashboardScreen() {
     await audioRecorder.stop();
     // TODO: enviar audioRecorder.uri a Groq Whisper free-tier (o Web Speech API en web)
     // y volcar la transcripción en setTexto(...). Por ahora, escribe el comando manualmente.
-    Alert.alert('Grabación capturada', 'Conecta el servicio de transcripción (ver TODO en el código) o escribe el comando.');
+    showAlert('Grabación capturada', 'Conecta el servicio de transcripción (ver TODO en el código) o escribe el comando.');
   }
 
   async function ejecutarComando() {

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, radius, spacing } from '@/lib/theme';
+import { showAlert } from '@/lib/alert';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -11,13 +12,13 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     if (!email || !password) {
-      Alert.alert('Faltan datos', 'Ingresa correo y contraseña');
+      showAlert('Faltan datos', 'Ingresa correo y contraseña');
       return;
     }
     setLoading(true);
     const { error } = await signIn(email.trim(), password);
     setLoading(false);
-    if (error) Alert.alert('Error al iniciar sesión', error);
+    if (error) showAlert('Error al iniciar sesión', error);
   }
 
   return (
