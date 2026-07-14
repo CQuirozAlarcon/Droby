@@ -1,4 +1,4 @@
-import { useEffect, useState, createContext, useContext } from 'react';
+import { useEffect, useState, createContext, useContext, useCallback } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { Rol } from '@/types/database';
@@ -19,24 +19,20 @@ export const AuthContext = createContext<AuthContextValue>({
   signOut: async () => {},
 });
 
-// El JWT de Supabase es un token en 3 partes separadas por ".".
-// La parte central (payload) está en base64url y contiene los claims,
-// incluido "user_role" inyectado por el Auth Hook (custom_access_token_hook).
-function decodificarRolDesdeJWT(accessToken: string | undefined): Rol | null {
-  if (!accessToken) return null;
-  try {
-    const payloadBase64 = accessToken.split('.')[1];
-    const payloadJson = decodeURIComponent(
-      atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/'))
-        .split('')
-        .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
-        .join('')
-    );
-    const payload = JSON.parse(payloadJson);
-    return (payload.user_role as Rol) ?? null;
-  } catch {
-    return null;
-  }
+// El rol se consulta directamente de la tabla public.user_roles usando el
+// user_id de la sesión, en vez de depender del claim "user_role" inyectado
+// por el Auth Hook en el JWT. Esto evita que la app dependa de un paso manual
+// (activar el hook en el Dashboard de Supabase) que es fácil de olvidar y que,
+// si no está activo, dejaba a TODOS los usuarios (incluido el admin) sin rol.
+async function obtenerRolDesdeTabla(userId: string | undefined): Promise<Rol | null> {
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error || !data) return 'empleado'; // por defecto, el más restrictivo
+  return data.role as Rol;
 }
 
 export function useAuthState(): AuthContextValue {
@@ -44,20 +40,24 @@ export function useAuthState(): AuthContextValue {
   const [rol, setRol] = useState<Rol | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const cargarRol = useCallback(async (currentSession: Session | null) => {
+    setSession(currentSession);
+    const r = await obtenerRolDesdeTabla(currentSession?.user.id);
+    setRol(r);
+  }, []);
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setRol(decodificarRolDesdeJWT(data.session?.access_token));
+    supabase.auth.getSession().then(async ({ data }) => {
+      await cargarRol(data.session);
       setLoading(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-      setRol(decodificarRolDesdeJWT(newSession?.access_token));
+      cargarRol(newSession);
     });
 
     return () => listener.subscription.unsubscribe();
-  }, []);
+  }, [cargarRol]);
 
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });

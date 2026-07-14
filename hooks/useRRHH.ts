@@ -59,18 +59,26 @@ export function useAsistencia(empleadoId?: number) {
   async function marcarAsistencia(
     empId: number,
     tipo: 'entrada' | 'salida',
-    metodo: MetodoRegistro = 'manual'
+    metodo: MetodoRegistro = 'manual',
+    timestampPersonalizado?: string
   ) {
     const { error } = await supabase.from('asistencia').insert({
       empleado_id: empId,
       tipo,
       metodo_registro: metodo,
+      ...(timestampPersonalizado ? { timestamp: timestampPersonalizado } : {}),
     });
     if (error) throw new Error(error.message);
     await fetchRegistros();
   }
 
-  return { registros, loading, proximoTipo, marcarAsistencia, refetch: fetchRegistros };
+  async function eliminarAsistencia(registroId: number) {
+    const { error } = await supabase.from('asistencia').delete().eq('id', registroId);
+    if (error) throw new Error(error.message);
+    await fetchRegistros();
+  }
+
+  return { registros, loading, proximoTipo, marcarAsistencia, eliminarAsistencia, refetch: fetchRegistros };
 }
 
 export function useAdelantos(empleadoId?: number) {

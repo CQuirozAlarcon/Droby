@@ -11,6 +11,7 @@ import { useEmpleados, useAsistencia, useAdelantos } from '@/hooks/useRRHH';
 import { useFinanzas } from '@/hooks/useFinanzas';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { PieChart } from '@/components/PieChart';
 
 interface MensajeChat {
   id: string;
@@ -182,23 +183,45 @@ export default function DashboardScreen() {
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </Pressable>
 
-        <Pressable style={styles.financeRing} onPress={() => router.push('/finanzas')}>
-          <View style={styles.ringInner}>
-            <Text style={styles.ringLabel}>{rol === 'admin' ? 'Total' : 'Empresa'}</Text>
-            <Text style={styles.ringValue}>S/ {totalMostrado.toFixed(0)}</Text>
-          </View>
-        </Pressable>
-
-        <View style={styles.quickAccessRow}>
+        <View style={styles.symmetricRow}>
           <Pressable style={styles.quickCard} onPress={() => router.push('/ventas')}>
             <Text style={styles.quickEmoji}>🛒</Text>
             <Text style={styles.quickLabel}>Ventas</Text>
           </Pressable>
+
+          <Pressable onPress={() => router.push('/finanzas')}>
+            <PieChart
+              segmentos={
+                rol === 'admin'
+                  ? [
+                      { valor: saldoEmpresa, color: colors.empresa },
+                      { valor: saldoPersonal, color: colors.personal },
+                    ]
+                  : [{ valor: saldoEmpresa, color: colors.empresa }]
+              }
+              centroLabel={rol === 'admin' ? 'Total' : 'Empresa'}
+              centroValor={`S/ ${totalMostrado.toFixed(0)}`}
+            />
+          </Pressable>
+
           <Pressable style={styles.quickCard} onPress={() => router.push('/rrhh/asistencia')}>
             <Text style={styles.quickEmoji}>🕒</Text>
             <Text style={styles.quickLabel}>Asistencia</Text>
           </Pressable>
         </View>
+
+        {rol === 'admin' && (
+          <View style={styles.legendRow}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: colors.empresa }]} />
+              <Text style={styles.legendText}>Empresa</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: colors.personal }]} />
+              <Text style={styles.legendText}>Personal</Text>
+            </View>
+          </View>
+        )}
       </View>
 
       <FlatList
@@ -245,31 +268,27 @@ const styles = StyleSheet.create({
   topSection: { padding: spacing.lg, paddingBottom: spacing.sm, alignItems: 'center' },
   logoutButton: { alignSelf: 'flex-end', marginBottom: spacing.sm },
   logoutText: { color: colors.danger, fontSize: 12, fontWeight: '600' },
-  financeRing: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 6,
-    borderColor: colors.primary,
-    justifyContent: 'center',
+  symmetricRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
-    backgroundColor: colors.surface,
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: spacing.sm,
   },
-  ringInner: { alignItems: 'center' },
-  ringLabel: { color: colors.textMuted, fontSize: 11 },
-  ringValue: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 },
-  quickAccessRow: { flexDirection: 'row', gap: spacing.md },
   quickCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
     alignItems: 'center',
-    minWidth: 90,
+    width: 84,
   },
   quickEmoji: { fontSize: 22 },
-  quickLabel: { color: colors.text, fontSize: 12, marginTop: spacing.xs, fontWeight: '600' },
+  quickLabel: { color: colors.text, fontSize: 12, marginTop: spacing.xs, fontWeight: '600', textAlign: 'center' },
+  legendRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { color: colors.textMuted, fontSize: 11 },
   chatContent: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
   bubble: { maxWidth: '85%', borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.xs },
   bubbleUser: { backgroundColor: colors.primary, alignSelf: 'flex-end' },
