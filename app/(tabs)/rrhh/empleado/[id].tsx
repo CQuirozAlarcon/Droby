@@ -1,3 +1,4 @@
+// app/(tabs)/rrhh/empleado/[id].tsx
 import { useLocalSearchParams } from 'expo-router';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { colors, radius, spacing } from '@/lib/theme';
@@ -21,7 +22,9 @@ export default function DetalleEmpleadoScreen() {
     );
   }
 
-  const totalAdelantosPendientes = adelantos.filter((a) => !a.descontado).reduce((acc, a) => acc + a.monto, 0);
+  const totalAdelantosPendientes = adelantos
+    .filter((a) => !a.descontado)
+    .reduce((acc, a) => acc + a.saldo_pendiente, 0);
 
   return (
     <View style={styles.container}>
@@ -66,7 +69,11 @@ export default function DetalleEmpleadoScreen() {
             <View style={styles.cardRow}>
               <Text style={styles.cardLabel}>{item.motivo}</Text>
               <Text style={[styles.cardValue, item.descontado ? { color: colors.success } : { color: colors.warning }]}>
-                {item.descontado ? 'Descontado' : 'Pendiente'}
+                {item.descontado
+                  ? 'Descontado'
+                  : item.saldo_pendiente < item.monto
+                  ? `Pendiente: S/ ${item.saldo_pendiente.toFixed(2)}`
+                  : 'Pendiente'}
               </Text>
             </View>
             <Text style={styles.total}>S/ {item.monto.toFixed(2)}</Text>

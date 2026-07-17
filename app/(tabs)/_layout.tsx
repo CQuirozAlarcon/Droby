@@ -36,6 +36,10 @@ export default function TabsLayout() {
         name="rrhh"
         options={{ title: 'RRHH', tabBarIcon: () => <TabIcon emoji="👥" /> }}
       />
+      <Tabs.Screen
+        name="estadisticas"
+        options={{ title: 'Stats', tabBarIcon: () => <TabIcon emoji="📊" /> }}
+      />
     </Tabs>
   );
 }

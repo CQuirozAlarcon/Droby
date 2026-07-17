@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+// app/(tabs)/index.tsx
+import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
-import * as Speech from 'expo-speech';
 import { colors, radius, spacing } from '@/lib/theme';
 import { parseCommand, parseCantidadesPorModelo } from '@/lib/voiceCommandParser';
 import { useInventario } from '@/hooks/useInventario';
@@ -32,19 +31,9 @@ export default function DashboardScreen() {
   const { saldoDe } = useFinanzas();
 
   const [texto, setTexto] = useState('');
-  const [grabando, setGrabando] = useState(false);
   const [mensajes, setMensajes] = useState<MensajeChat[]>([
     { id: 'bienvenida', autor: 'asistente', texto: 'Hola, dime qué necesitas: marcar asistencia, consultar stock, registrar una venta o un adelanto.' },
   ]);
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-
-  useEffect(() => {
-    (async () => {
-      const status = await AudioModule.requestRecordingPermissionsAsync();
-      if (!status.granted) return;
-      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
-    })();
-  }, []);
 
   const saldoEmpresa = saldoDe('empresa');
   const saldoPersonal = saldoDe('personal');
@@ -55,31 +44,7 @@ export default function DashboardScreen() {
   }
 
   function responder(mensaje: string, esError = false) {
-    Speech.speak(mensaje, { language: 'es-PE' });
     agregarMensaje({ id: String(Date.now()), autor: 'asistente', texto: mensaje, esError });
-  }
-
-  async function iniciarGrabacion() {
-    try {
-      const status = await AudioModule.requestRecordingPermissionsAsync();
-      if (!status.granted) {
-        showAlert('Permiso denegado', 'Se necesita acceso al micrófono');
-        return;
-      }
-      await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
-      setGrabando(true);
-    } catch (e: any) {
-      showAlert('Error al grabar', e.message);
-    }
-  }
-
-  async function detenerGrabacion() {
-    setGrabando(false);
-    await audioRecorder.stop();
-    // TODO: enviar audioRecorder.uri a Groq Whisper free-tier (o Web Speech API en web)
-    // y volcar la transcripción en setTexto(...). Por ahora, escribe el comando manualmente.
-    showAlert('Grabación capturada', 'Conecta el servicio de transcripción (ver TODO en el código) o escribe el comando.');
   }
 
   async function ejecutarComando() {
@@ -97,7 +62,7 @@ export default function DashboardScreen() {
           if (empleados.length === 0) throw new Error('No hay empleados registrados');
           const empleado = empleados[0]; // TODO: resolver empleado por identidad del usuario autenticado
           const tipo = intent === 'MARCAR_ENTRADA' ? 'entrada' : 'salida';
-          await marcarAsistencia(empleado.id, tipo, 'voz');
+          await marcarAsistencia(empleado.id, tipo, 'texto');
           responder(`Listo, ${tipo} registrada para ${empleado.nombre}.`);
           break;
         }
@@ -124,7 +89,7 @@ export default function DashboardScreen() {
           if (!monto || !nombreEmpleado) throw new Error('No entendí el monto o el empleado');
           const empleado = empleados.find((e) => e.nombre.toLowerCase().includes(nombreEmpleado.toLowerCase()));
           if (!empleado) throw new Error(`No encontré al empleado "${nombreEmpleado}"`);
-          await registrarAdelanto(empleado.id, monto, 'Adelanto registrado por voz/texto');
+          await registrarAdelanto(empleado.id, monto, 'Adelanto registrado por texto');
           responder(`Adelanto de ${monto} soles registrado para ${empleado.nombre}.`);
           break;
         }
@@ -176,7 +141,7 @@ export default function DashboardScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.bg }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <View style={styles.topSection}>
@@ -251,12 +216,6 @@ export default function DashboardScreen() {
           onChangeText={setTexto}
           onSubmitEditing={ejecutarComando}
         />
-        <Pressable
-          style={[styles.micButton, grabando && { backgroundColor: colors.danger }]}
-          onPress={grabando ? detenerGrabacion : iniciarGrabacion}
-        >
-          <Text style={styles.micIcon}>{grabando ? '⏹' : '🎙️'}</Text>
-        </Pressable>
         <Pressable style={styles.sendButton} onPress={ejecutarComando}>
           <Text style={styles.sendIcon}>➤</Text>
         </Pressable>
@@ -314,15 +273,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  micButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surfaceAlt,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  micIcon: { fontSize: 18 },
   sendButton: {
     width: 44,
     height: 44,

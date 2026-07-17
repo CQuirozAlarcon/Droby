@@ -26,7 +26,7 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <Text style={styles.title}>ERP Accesorios</Text>
+      <Text style={styles.title}>DROBY ERP</Text>
       <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
 
       <TextInput

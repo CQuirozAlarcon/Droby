@@ -32,7 +32,7 @@ export default function RootLayout() {
 
   return (
     <AuthContext.Provider value={auth}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }} />
     </AuthContext.Provider>
   );

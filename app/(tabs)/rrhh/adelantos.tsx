@@ -1,9 +1,10 @@
+// app/(tabs)/rrhh/adelantos.tsx
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, FlatList } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { colors, radius, spacing } from '@/lib/theme';
 import { useEmpleados, useAdelantos } from '@/hooks/useRRHH';
 import { EmptyState } from '@/components/EmptyState';
+import { Select } from '@/components/Select';
 import { showAlert } from '@/lib/alert';
 
 export default function AdelantosScreen() {
@@ -43,13 +44,13 @@ export default function AdelantosScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Empleado</Text>
-      <View style={styles.pickerWrapper}>
-        <Picker selectedValue={empleadoId ?? undefined} onValueChange={(v) => setEmpleadoId(Number(v))} dropdownIconColor={colors.text}>
-          {empleados.map((e) => (
-            <Picker.Item key={e.id} label={e.nombre} value={e.id} color={colors.text} />
-          ))}
-        </Picker>
-      </View>
+      <Select
+        value={empleadoId}
+        onChange={setEmpleadoId}
+        searchable
+        placeholder="Selecciona un empleado"
+        options={empleados.map((e) => ({ label: e.nombre, value: e.id }))}
+      />
 
       <Text style={styles.label}>Monto (S/)</Text>
       <TextInput style={styles.input} keyboardType="decimal-pad" value={monto} onChangeText={setMonto} />
@@ -74,7 +75,11 @@ export default function AdelantosScreen() {
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.monto}>S/ {item.monto.toFixed(2)}</Text>
               <Text style={[styles.estado, item.descontado ? { color: colors.success } : { color: colors.warning }]}>
-                {item.descontado ? 'Descontado' : 'Pendiente'}
+                {item.descontado
+                  ? 'Descontado'
+                  : item.saldo_pendiente < item.monto
+                  ? `Pendiente: S/ ${item.saldo_pendiente.toFixed(2)}`
+                  : 'Pendiente'}
               </Text>
             </View>
           </View>
@@ -88,7 +93,6 @@ export default function AdelantosScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg },
   label: { color: colors.textMuted, fontSize: 13, marginBottom: spacing.xs, marginTop: spacing.sm },
-  pickerWrapper: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
   input: { backgroundColor: colors.surface, color: colors.text, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
   button: { backgroundColor: colors.primary, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', marginTop: spacing.md, marginBottom: spacing.lg },
   buttonText: { color: colors.bg, fontWeight: '700' },

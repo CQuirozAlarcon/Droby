@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { colors, radius, spacing, MODELOS_IPHONE } from '@/lib/theme';
 import { useInventario } from '@/hooks/useInventario';
+import { Select } from '@/components/Select';
 import { TipoProducto } from '@/types/database';
 import { showAlert } from '@/lib/alert';
 
@@ -27,14 +27,9 @@ export default function NuevoProductoScreen() {
   const modeloFinal = usaModeloPersonalizado ? modeloPersonalizado.trim() : modeloSeleccionado;
 
   async function handleGuardar() {
-    if (!precio || !costo) {
-      showAlert('Faltan datos', 'Precio y costo son obligatorios');
-      return;
-    }
-    if (!modeloFinal) {
-      showAlert('Falta el modelo', 'Escribe el nombre del modelo');
-      return;
-    }
+    if (!precio || !costo) return showAlert('Faltan datos', 'Precio y costo son obligatorios');
+    if (!modeloFinal) return showAlert('Falta el modelo', 'Escribe el nombre del modelo');
+
     setGuardando(true);
     try {
       await crearProducto({
@@ -57,22 +52,25 @@ export default function NuevoProductoScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.content}>
       <Text style={styles.label}>Tipo</Text>
-      <View style={styles.pickerWrapper}>
-        <Picker selectedValue={tipo} onValueChange={setTipo} dropdownIconColor={colors.text}>
-          <Picker.Item label="Funda" value="funda" color={colors.text} />
-          <Picker.Item label="Cargador" value="cargador" color={colors.text} />
-        </Picker>
-      </View>
+      <Select
+        value={tipo}
+        onChange={(v) => setTipo(v as TipoProducto)}
+        options={[
+          { label: 'Funda', value: 'funda' },
+          { label: 'Cargador', value: 'cargador' },
+        ]}
+      />
 
       <Text style={styles.label}>Modelo</Text>
-      <View style={styles.pickerWrapper}>
-        <Picker selectedValue={modeloSeleccionado} onValueChange={setModeloSeleccionado} dropdownIconColor={colors.text}>
-          {MODELOS_IPHONE.map((m) => (
-            <Picker.Item key={m} label={m} value={m} color={colors.text} />
-          ))}
-          <Picker.Item label="Otro (escribir manualmente)" value={OTRO_MODELO} color={colors.text} />
-        </Picker>
-      </View>
+      <Select
+        value={modeloSeleccionado}
+        onChange={setModeloSeleccionado}
+        searchable
+        options={[
+          ...MODELOS_IPHONE.map((m) => ({ label: m, value: m })),
+          { label: 'Otro (escribir manualmente)', value: OTRO_MODELO },
+        ]}
+      />
 
       {usaModeloPersonalizado && (
         <>
@@ -116,26 +114,7 @@ export default function NuevoProductoScreen() {
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.xs },
   label: { color: colors.textMuted, fontSize: 13, marginTop: spacing.sm },
-  input: {
-    backgroundColor: colors.surface,
-    color: colors.text,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  pickerWrapper: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  button: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    alignItems: 'center',
-    marginTop: spacing.lg,
-  },
+  input: { backgroundColor: colors.surface, color: colors.text, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
+  button: { backgroundColor: colors.primary, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', marginTop: spacing.lg },
   buttonText: { color: colors.bg, fontWeight: '700' },
 });

@@ -47,13 +47,13 @@ export function useAsistencia(empleadoId?: number) {
     fetchRegistros();
   }, [fetchRegistros]);
 
-  // Determina si el próximo registro válido es 'entrada' o 'salida'
-  // basado en el último registro del día actual.
-  function proximoTipo(registrosEmpleado: Asistencia[]): 'entrada' | 'salida' {
-    const hoy = new Date().toDateString();
-    const deHoy = registrosEmpleado.filter((r) => new Date(r.timestamp).toDateString() === hoy);
-    if (deHoy.length === 0) return 'entrada';
-    return deHoy[0].tipo === 'entrada' ? 'salida' : 'entrada';
+  function proximoTipo(empId: number, fechaISO?: string): 'entrada' | 'salida' {
+    const fecha = fechaISO ? new Date(fechaISO).toDateString() : new Date().toDateString();
+    const deEseDia = registros.filter(
+      (r) => r.empleado_id === empId && new Date(r.timestamp).toDateString() === fecha
+    );
+    if (deEseDia.length === 0) return 'entrada';
+    return deEseDia[0].tipo === 'entrada' ? 'salida' : 'entrada';
   }
 
   async function marcarAsistencia(
@@ -68,6 +68,8 @@ export function useAsistencia(empleadoId?: number) {
       metodo_registro: metodo,
       ...(timestampPersonalizado ? { timestamp: timestampPersonalizado } : {}),
     });
+    // El trigger de BD rechaza dos entradas/salidas seguidas el mismo día;
+    // el mensaje de error ya viene en español, listo para mostrar con showAlert.
     if (error) throw new Error(error.message);
     await fetchRegistros();
   }
@@ -98,21 +100,16 @@ export function useAdelantos(empleadoId?: number) {
     fetchAdelantos();
   }, [fetchAdelantos]);
 
-  // El trigger procesar_adelanto_financiero (en la BD) registra el
-  // egreso en la caja empresa automáticamente al insertar aquí.
   async function registrarAdelanto(empId: number, monto: number, motivo: string) {
-    const { error } = await supabase.from('adelantos').insert({
-      empleado_id: empId,
-      monto,
-      motivo,
-    });
+    const { error } = await supabase.from('adelantos').insert({ empleado_id: empId, monto, motivo });
     if (error) throw new Error(error.message);
     await fetchAdelantos();
   }
 
-  const pendientes = adelantos.filter((a) => !a.descontado);
+  const pendientes = adelantos.filter((a) => !a.descontado && a.saldo_pendiente > 0);
+  const deudaTotalPendiente = pendientes.reduce((acc, a) => acc + a.saldo_pendiente, 0);
 
-  return { adelantos, pendientes, loading, registrarAdelanto, refetch: fetchAdelantos };
+  return { adelantos, pendientes, deudaTotalPendiente, loading, registrarAdelanto, refetch: fetchAdelantos };
 }
 
 export function useNomina(empleadoId?: number) {

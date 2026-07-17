@@ -1,9 +1,10 @@
+// app/(tabs)/rrhh/asistencia.tsx
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, Modal, TextInput } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { colors, radius, spacing } from '@/lib/theme';
 import { useEmpleados, useAsistencia } from '@/hooks/useRRHH';
 import { EmptyState } from '@/components/EmptyState';
+import { Select } from '@/components/Select';
 import { showAlert, showConfirm } from '@/lib/alert';
 
 function fechaHoyStr(): string {
@@ -79,13 +80,13 @@ export default function AsistenciaScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Empleado</Text>
-      <View style={styles.pickerWrapper}>
-        <Picker selectedValue={empleadoId ?? undefined} onValueChange={(v) => setEmpleadoId(Number(v))} dropdownIconColor={colors.text}>
-          {empleados.map((e) => (
-            <Picker.Item key={e.id} label={e.nombre} value={e.id} color={colors.text} />
-          ))}
-        </Picker>
-      </View>
+      <Select
+        value={empleadoId}
+        onChange={setEmpleadoId}
+        searchable
+        placeholder="Selecciona un empleado"
+        options={empleados.map((e) => ({ label: e.nombre, value: e.id }))}
+      />
 
       <Text style={styles.hint}>Marcar ahora mismo:</Text>
       <View style={styles.row}>
@@ -175,7 +176,6 @@ export default function AsistenciaScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg },
   label: { color: colors.textMuted, fontSize: 13, marginBottom: spacing.xs, marginTop: spacing.sm },
-  pickerWrapper: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm },
   hint: { color: colors.textMuted, fontSize: 12, marginBottom: spacing.sm },
   row: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   marcarButton: { flex: 1, borderRadius: radius.md, padding: spacing.md, alignItems: 'center' },

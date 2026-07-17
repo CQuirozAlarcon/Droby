@@ -9,14 +9,10 @@
     "backgroundColor": "#0F172A",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tuempresa.erpaccesorios",
-      "infoPlist": {
-        "NSMicrophoneUsageDescription": "Se usa el micrófono para comandos de voz (marcar asistencia, registrar ventas, consultar stock)."
-      }
+      "bundleIdentifier": "com.tuempresa.erpaccesorios"
     },
     "android": {
-      "package": "com.tuempresa.erpaccesorios",
-      "permissions": ["RECORD_AUDIO"]
+      "package": "com.tuempresa.erpaccesorios"
     },
     "plugins": ["expo-router", "expo-secure-store"],
     "extra": {

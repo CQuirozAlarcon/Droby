@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, FlatList } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { colors, radius, spacing } from '@/lib/theme';
 import { useInventario } from '@/hooks/useInventario';
 import { useVentas } from '@/hooks/useVentas';
 import { supabase } from '@/lib/supabase';
-import { VentaItemInput } from '@/types/database';
+import { Cliente, VentaItemInput } from '@/types/database';
 import { showAlert } from '@/lib/alert';
+import { Select } from '@/components/Select';
+import { ClienteAutocomplete } from '@/components/ClienteAutocomplete';
 
 interface ItemCarrito extends VentaItemInput {
   modelo: string;
@@ -19,6 +20,7 @@ export default function NuevaVentaScreen() {
   const { crearVenta } = useVentas();
 
   const [clienteNombre, setClienteNombre] = useState('');
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
   const [productoSeleccionado, setProductoSeleccionado] = useState<number | null>(
     productos[0]?.id ?? null
   );
@@ -27,16 +29,11 @@ export default function NuevaVentaScreen() {
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const [guardando, setGuardando] = useState(false);
 
-  // Prellena el precio con el precio de lista del producto seleccionado,
-  // pero queda editable para poder aplicar descuentos puntuales por cliente.
   useEffect(() => {
     const producto = productos.find((p) => p.id === productoSeleccionado);
     if (producto) setPrecioUnitario(String(producto.precio_unitario));
   }, [productoSeleccionado, productos]);
 
-  // productos carga de forma asíncrona; si al montar el componente aún
-  // estaba vacío, productoSeleccionado se quedaría en null para siempre
-  // sin este efecto (aunque el Picker visualmente muestre una opción).
   useEffect(() => {
     if (productoSeleccionado === null && productos.length > 0) {
       setProductoSeleccionado(productos[0].id);
@@ -84,25 +81,26 @@ export default function NuevaVentaScreen() {
 
     setGuardando(true);
     try {
-      const { data: existente } = await supabase
-        .from('clientes')
-        .select('id')
-        .ilike('nombre', clienteNombre.trim())
-        .maybeSingle();
-
-      let clienteId = existente?.id;
+      let clienteId = clienteSeleccionado?.id;
       if (!clienteId) {
-        const { data: nuevo, error: errCliente } = await supabase
+        const { data: existente } = await supabase
           .from('clientes')
-          .insert({ nombre: clienteNombre.trim(), tipo_cliente: 'mayorista' })
-          .select()
-          .single();
-        if (errCliente) throw new Error(errCliente.message);
-        clienteId = nuevo.id;
+          .select('id')
+          .ilike('nombre', clienteNombre.trim())
+          .maybeSingle();
+
+        clienteId = existente?.id;
+        if (!clienteId) {
+          const { data: nuevo, error: errCliente } = await supabase
+            .from('clientes')
+            .insert({ nombre: clienteNombre.trim(), tipo_cliente: 'mayorista' })
+            .select()
+            .single();
+          if (errCliente) throw new Error(errCliente.message);
+          clienteId = nuevo.id;
+        }
       }
 
-      // Toda venta es una ganancia de la empresa: siempre va a caja 'empresa'.
-      // La caja personal se maneja aparte, en el módulo Finanzas (gastos/ingresos extra).
       await crearVenta(
         clienteId,
         items.map(({ modelo, ...rest }) => rest),
@@ -122,12 +120,13 @@ export default function NuevaVentaScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.label}>Cliente</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Nombre del cliente mayorista"
-          placeholderTextColor={colors.textMuted}
+        <ClienteAutocomplete
           value={clienteNombre}
-          onChangeText={setClienteNombre}
+          onChangeText={(t) => {
+            setClienteNombre(t);
+            setClienteSeleccionado(null);
+          }}
+          onSelect={setClienteSeleccionado}
         />
 
         <Text style={styles.sectionTitle}>Agregar productos por modelo</Text>
@@ -135,22 +134,17 @@ export default function NuevaVentaScreen() {
           Cuenta manualmente las unidades por modelo (sin distinguir color), tal como se hace hoy con el pedido del cliente.
         </Text>
 
-        <View style={styles.pickerWrapper}>
-          <Picker
-            selectedValue={productoSeleccionado ?? undefined}
-            onValueChange={(v) => setProductoSeleccionado(Number(v))}
-            dropdownIconColor={colors.text}
-          >
-            {productos.map((p) => (
-              <Picker.Item
-                key={p.id}
-                label={`${p.modelo}${p.variante ? ' · ' + p.variante : ''} (stock: ${p.stock_actual})`}
-                value={p.id}
-                color={colors.text}
-              />
-            ))}
-          </Picker>
-        </View>
+        <Select
+          value={productoSeleccionado}
+          onChange={setProductoSeleccionado}
+          searchable
+          placeholder="Selecciona un producto"
+          options={productos.map((p) => ({
+            label: `${p.modelo}${p.variante ? ' · ' + p.variante : ''}`,
+            value: p.id,
+            subtitle: `Stock: ${p.stock_actual}`,
+          }))}
+        />
 
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
@@ -222,43 +216,20 @@ const styles = StyleSheet.create({
   hint: { color: colors.textMuted, fontSize: 12, marginBottom: spacing.sm },
   hintSmall: { color: colors.textMuted, fontSize: 11, marginBottom: spacing.sm },
   sectionTitle: { color: colors.text, fontWeight: '700', marginTop: spacing.md },
-  input: {
-    backgroundColor: colors.surface,
-    color: colors.text,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  pickerWrapper: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.sm,
-  },
+  input: { backgroundColor: colors.surface, color: colors.text, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
   row: { flexDirection: 'row', gap: spacing.sm },
   addButton: { backgroundColor: colors.success, borderRadius: radius.md, padding: spacing.sm, alignItems: 'center', marginTop: spacing.xs },
   addButtonText: { color: '#0F172A', fontWeight: '700' },
   itemRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.sm,
-    padding: spacing.sm,
-    marginTop: spacing.xs,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: colors.surfaceAlt, borderRadius: radius.sm, padding: spacing.sm, marginTop: spacing.xs,
   },
   itemText: { color: colors.text, fontSize: 13, flex: 1, marginRight: spacing.sm },
   itemSubtotal: { color: colors.textMuted, fontSize: 13 },
   remove: { color: colors.danger, fontWeight: '700', paddingHorizontal: spacing.xs },
   totalBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginTop: spacing.lg,
+    flexDirection: 'row', justifyContent: 'space-between', backgroundColor: colors.surface,
+    borderRadius: radius.md, padding: spacing.md, marginTop: spacing.lg,
   },
   totalLabel: { color: colors.textMuted, fontSize: 14 },
   totalValue: { color: colors.text, fontSize: 20, fontWeight: '800' },

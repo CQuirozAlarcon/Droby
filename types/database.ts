@@ -121,6 +121,7 @@ export interface Adelanto {
   id: number;
   empleado_id: number;
   monto: number;
+  saldo_pendiente: number;
   fecha: string;
   motivo: string | null;
   descontado: boolean;

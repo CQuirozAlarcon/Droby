@@ -1,16 +1,16 @@
 export const colors = {
-  bg: '#0F172A',
-  surface: '#1E293B',
-  surfaceAlt: '#293548',
-  border: '#334155',
-  primary: '#38BDF8',
-  success: '#4ADE80',
-  danger: '#F87171',
-  warning: '#FBBF24',
-  text: '#F1F5F9',
-  textMuted: '#94A3B8',
-  personal: '#C084FC',
-  empresa: '#38BDF8',
+  bg: '#FFFFFF',
+  surface: '#F7F7F8',
+  surfaceAlt: '#FFEDE0',
+  border: '#E5E5E7',
+  primary: '#FF7A1A',
+  success: '#22C55E',
+  danger: '#EF4444',
+  warning: '#F59E0B',
+  text: '#1C1C1E',
+  textMuted: '#8A8A8E',
+  personal: '#8B5CF6',
+  empresa: '#FF7A1A',
 };
 
 export const spacing = {
