@@ -3,7 +3,7 @@ import { colors, spacing } from '@/lib/theme';
 
 export function EmptyState({ message }: { message: string }) {
   return (
-    <View style={styles.container}>
+    <View style={styles.container} accessible accessibilityRole="text" accessibilityLabel={message}>
       <Text style={styles.text}>{message}</Text>
     </View>
   );

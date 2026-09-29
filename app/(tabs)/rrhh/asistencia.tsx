@@ -1,4 +1,3 @@
-// app/(tabs)/rrhh/asistencia.tsx
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, Modal, TextInput } from 'react-native';
 import { colors, radius, spacing } from '@/lib/theme';
@@ -6,10 +5,11 @@ import { useEmpleados, useAsistencia } from '@/hooks/useRRHH';
 import { EmptyState } from '@/components/EmptyState';
 import { Select } from '@/components/Select';
 import { showAlert, showConfirm } from '@/lib/alert';
+import { fechaLocalISO } from '@/lib/fecha';
 
-function fechaHoyStr(): string {
-  return new Date().toISOString().split('T')[0];
-}
+// fecha LOCAL del dispositivo (no UTC): con toISOString(), entre las 19:00 y
+// 23:59 en Perú (UTC-5) el formulario se abría con la fecha de "mañana"
+function fechaHoyStr(): string { return fechaLocalISO(); }
 function horaAhoraStr(): string {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -54,8 +54,9 @@ export default function AsistenciaScreen() {
     if (!empleadoId) return showAlert('Selecciona un empleado');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaManual)) return showAlert('Formato de fecha inválido', 'Usa YYYY-MM-DD');
     if (!/^\d{2}:\d{2}$/.test(horaManual)) return showAlert('Formato de hora inválido', 'Usa HH:MM (24h)');
-
-    const timestampISO = new Date(`${fechaManual}T${horaManual}:00`).toISOString();
+    const fechaParseada = new Date(`${fechaManual}T${horaManual}:00`);
+    if (isNaN(fechaParseada.getTime())) return showAlert('Fecha u hora inválida', 'Revisa que el día y la hora existan (ej. hora máx. 23:59)');
+    const timestampISO = fechaParseada.toISOString();
     setGuardandoManual(true);
     try {
       await marcarAsistencia(empleadoId, tipoManual, 'manual', timestampISO);
@@ -80,12 +81,12 @@ export default function AsistenciaScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Empleado</Text>
-      <Select
+      <Select<number>
         value={empleadoId}
-        onChange={setEmpleadoId}
-        searchable
-        placeholder="Selecciona un empleado"
         options={empleados.map((e) => ({ label: e.nombre, value: e.id }))}
+        onChange={setEmpleadoId}
+        placeholder="Selecciona un empleado"
+        accessibilityLabel="Empleado"
       />
 
       <Text style={styles.hint}>Marcar ahora mismo:</Text>
@@ -94,6 +95,9 @@ export default function AsistenciaScreen() {
           style={[styles.marcarButton, { backgroundColor: colors.success }]}
           onPress={() => handleMarcar('entrada')}
           disabled={procesando !== null || !empleadoId}
+          accessibilityRole="button"
+          accessibilityLabel="Marcar entrada ahora"
+          accessibilityState={{ busy: procesando === 'entrada', disabled: procesando !== null || !empleadoId }}
         >
           <Text style={styles.marcarText}>{procesando === 'entrada' ? 'Marcando...' : '→ ENTRADA'}</Text>
         </Pressable>
@@ -101,12 +105,15 @@ export default function AsistenciaScreen() {
           style={[styles.marcarButton, { backgroundColor: colors.danger }]}
           onPress={() => handleMarcar('salida')}
           disabled={procesando !== null || !empleadoId}
+          accessibilityRole="button"
+          accessibilityLabel="Marcar salida ahora"
+          accessibilityState={{ busy: procesando === 'salida', disabled: procesando !== null || !empleadoId }}
         >
           <Text style={styles.marcarText}>{procesando === 'salida' ? 'Marcando...' : '← SALIDA'}</Text>
         </Pressable>
       </View>
 
-      <Pressable style={styles.manualButton} onPress={abrirModalManual}>
+      <Pressable style={styles.manualButton} onPress={abrirModalManual} accessibilityRole="button" accessibilityLabel="Marcar con fecha y hora manual, para olvidos">
         <Text style={styles.manualButtonText}>🕒 Marcar con fecha/hora manual (olvidos)</Text>
       </Pressable>
 
@@ -117,9 +124,7 @@ export default function AsistenciaScreen() {
         renderItem={({ item }) => (
           <View style={styles.rowItem}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.tipo, item.tipo === 'entrada' ? { color: colors.success } : { color: colors.danger }]}>
-                {item.tipo === 'entrada' ? '→ Entrada' : '← Salida'}
-              </Text>
+              <Text style={[styles.tipo, item.tipo === 'entrada' ? { color: colors.success } : { color: colors.danger }]}>{item.tipo === 'entrada' ? '→ Entrada' : '← Salida'}</Text>
               <Text style={styles.hora}>{new Date(item.timestamp).toLocaleString('es-PE')}</Text>
             </View>
             <Pressable onPress={() => handleEliminar(item.id)} style={styles.deleteButton}>
@@ -134,36 +139,24 @@ export default function AsistenciaScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Marcaje manual</Text>
-
             <Text style={styles.label}>Tipo</Text>
             <View style={styles.row}>
               {(['entrada', 'salida'] as const).map((t) => (
-                <Pressable
-                  key={t}
-                  style={[styles.chip, tipoManual === t && { backgroundColor: colors.primary }]}
-                  onPress={() => setTipoManual(t)}
-                >
-                  <Text style={[styles.chipText, tipoManual === t && { color: colors.bg, fontWeight: '700' }]}>
-                    {t === 'entrada' ? 'Entrada' : 'Salida'}
-                  </Text>
+                <Pressable key={t} style={[styles.chip, tipoManual === t && { backgroundColor: colors.primary }]} onPress={() => setTipoManual(t)}>
+                  <Text style={[styles.chipText, tipoManual === t && { color: colors.bg, fontWeight: '700' }]}>{t === 'entrada' ? 'Entrada' : 'Salida'}</Text>
                 </Pressable>
               ))}
             </View>
-
             <Text style={styles.label}>Fecha (YYYY-MM-DD)</Text>
             <TextInput style={styles.input} value={fechaManual} onChangeText={setFechaManual} placeholder="2026-07-13" placeholderTextColor={colors.textMuted} />
-
             <Text style={styles.label}>Hora (HH:MM, 24h)</Text>
             <TextInput style={styles.input} value={horaManual} onChangeText={setHoraManual} placeholder="14:30" placeholderTextColor={colors.textMuted} />
-
             <View style={styles.row}>
               <Pressable style={[styles.modalButton, { backgroundColor: colors.border }]} onPress={() => setModalManual(false)}>
                 <Text style={styles.modalButtonText}>Cancelar</Text>
               </Pressable>
               <Pressable style={[styles.modalButton, { backgroundColor: colors.primary }]} onPress={handleGuardarManual} disabled={guardandoManual}>
-                <Text style={[styles.modalButtonText, { color: colors.bg, fontWeight: '700' }]}>
-                  {guardandoManual ? 'Guardando...' : 'Guardar'}
-                </Text>
+                <Text style={[styles.modalButtonText, { color: colors.bg, fontWeight: '700' }]}>{guardandoManual ? 'Guardando...' : 'Guardar'}</Text>
               </Pressable>
             </View>
           </View>
@@ -183,14 +176,7 @@ const styles = StyleSheet.create({
   manualButton: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.sm, alignItems: 'center', marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.border },
   manualButtonText: { color: colors.text, fontSize: 13, fontWeight: '600' },
   sectionTitle: { color: colors.text, fontWeight: '700', marginBottom: spacing.sm },
-  rowItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    padding: spacing.sm,
-    marginBottom: spacing.xs,
-  },
+  rowItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.xs },
   tipo: { fontWeight: '700' },
   hora: { color: colors.textMuted, fontSize: 12 },
   deleteButton: { padding: spacing.xs },

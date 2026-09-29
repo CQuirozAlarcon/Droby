@@ -1,13 +1,15 @@
-// app/(tabs)/rrhh/adelantos.tsx
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, FlatList } from 'react-native';
 import { colors, radius, spacing } from '@/lib/theme';
 import { useEmpleados, useAdelantos } from '@/hooks/useRRHH';
+import { useAuth } from '@/hooks/useAuth';
 import { EmptyState } from '@/components/EmptyState';
+import { SoloAdmin } from '@/components/SoloAdmin';
 import { Select } from '@/components/Select';
 import { showAlert } from '@/lib/alert';
 
 export default function AdelantosScreen() {
+  const { rol } = useAuth();
   const { empleados } = useEmpleados();
   const [empleadoId, setEmpleadoId] = useState<number | null>(empleados[0]?.id ?? null);
 
@@ -19,11 +21,14 @@ export default function AdelantosScreen() {
   const [motivo, setMotivo] = useState('');
   const [guardando, setGuardando] = useState(false);
 
+  // RLS solo permite a admin leer/insertar adelantos: en vez de una lista
+  // vacía engañosa o un error crudo, el empleado ve un aviso claro
+  if (rol !== 'admin') return <SoloAdmin />;
+
   async function handleRegistrar() {
     const m = parseFloat(monto);
     if (!empleadoId) return showAlert('Selecciona un empleado');
     if (!m || m <= 0) return showAlert('Monto inválido');
-
     setGuardando(true);
     try {
       await registrarAdelanto(empleadoId, m, motivo || 'Adelanto de sueldo');
@@ -44,17 +49,16 @@ export default function AdelantosScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Empleado</Text>
-      <Select
+      <Select<number>
         value={empleadoId}
-        onChange={setEmpleadoId}
-        searchable
-        placeholder="Selecciona un empleado"
         options={empleados.map((e) => ({ label: e.nombre, value: e.id }))}
+        onChange={setEmpleadoId}
+        placeholder="Selecciona un empleado"
+        accessibilityLabel="Empleado"
       />
 
       <Text style={styles.label}>Monto (S/)</Text>
       <TextInput style={styles.input} keyboardType="decimal-pad" value={monto} onChangeText={setMonto} />
-
       <Text style={styles.label}>Motivo (opcional)</Text>
       <TextInput style={styles.input} value={motivo} onChangeText={setMotivo} />
 
@@ -74,13 +78,7 @@ export default function AdelantosScreen() {
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.monto}>S/ {item.monto.toFixed(2)}</Text>
-              <Text style={[styles.estado, item.descontado ? { color: colors.success } : { color: colors.warning }]}>
-                {item.descontado
-                  ? 'Descontado'
-                  : item.saldo_pendiente < item.monto
-                  ? `Pendiente: S/ ${item.saldo_pendiente.toFixed(2)}`
-                  : 'Pendiente'}
-              </Text>
+              <Text style={[styles.estado, item.descontado ? { color: colors.success } : { color: colors.warning }]}>{item.descontado ? 'Descontado' : 'Pendiente'}</Text>
             </View>
           </View>
         )}
@@ -97,14 +95,7 @@ const styles = StyleSheet.create({
   button: { backgroundColor: colors.primary, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', marginTop: spacing.md, marginBottom: spacing.lg },
   buttonText: { color: colors.bg, fontWeight: '700' },
   sectionTitle: { color: colors.text, fontWeight: '700', marginBottom: spacing.sm },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    padding: spacing.sm,
-    marginBottom: spacing.xs,
-  },
+  row: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.xs },
   nombre: { color: colors.text, fontWeight: '600' },
   motivo: { color: colors.textMuted, fontSize: 12 },
   monto: { color: colors.text, fontWeight: '700' },

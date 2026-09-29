@@ -22,11 +22,8 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <Text style={styles.title}>DROBY ERP</Text>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Text style={styles.title}>Elite Case</Text>
       <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
 
       <TextInput
@@ -35,6 +32,8 @@ export default function LoginScreen() {
         placeholderTextColor={colors.textMuted}
         autoCapitalize="none"
         keyboardType="email-address"
+        autoComplete="email"
+        accessibilityLabel="Correo electrónico"
         value={email}
         onChangeText={setEmail}
       />
@@ -43,11 +42,20 @@ export default function LoginScreen() {
         placeholder="Contraseña"
         placeholderTextColor={colors.textMuted}
         secureTextEntry
+        autoComplete="password"
+        accessibilityLabel="Contraseña"
         value={password}
         onChangeText={setPassword}
       />
 
-      <Pressable style={styles.button} onPress={handleLogin} disabled={loading}>
+      <Pressable
+        style={styles.button}
+        onPress={handleLogin}
+        disabled={loading}
+        accessibilityRole="button"
+        accessibilityLabel={loading ? 'Ingresando' : 'Ingresar'}
+        accessibilityState={{ busy: loading }}
+      >
         <Text style={styles.buttonText}>{loading ? 'Ingresando...' : 'Ingresar'}</Text>
       </Pressable>
     </KeyboardAvoidingView>
@@ -59,20 +67,9 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 28, fontWeight: '700', textAlign: 'center' },
   subtitle: { color: colors.textMuted, textAlign: 'center', marginBottom: spacing.xl, marginTop: spacing.xs },
   input: {
-    backgroundColor: colors.surface,
-    color: colors.text,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.surface, color: colors.text, borderRadius: radius.md, padding: spacing.md,
+    marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border,
   },
-  button: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    alignItems: 'center',
-    marginTop: spacing.sm,
-  },
+  button: { backgroundColor: colors.primary, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', marginTop: spacing.sm },
   buttonText: { color: colors.bg, fontWeight: '700', fontSize: 16 },
 });

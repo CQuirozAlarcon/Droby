@@ -18,11 +18,7 @@ export function useEmpleados() {
   }, [fetchEmpleados]);
 
   async function crearEmpleado(nombre: string, salarioHora: number) {
-    const { error } = await supabase.from('empleados').insert({
-      nombre,
-      salario_hora: salarioHora,
-      activo: true,
-    });
+    const { error } = await supabase.from('empleados').insert({ nombre, salario_hora: salarioHora, activo: true });
     if (error) throw new Error(error.message);
     await fetchEmpleados();
   }
@@ -47,29 +43,20 @@ export function useAsistencia(empleadoId?: number) {
     fetchRegistros();
   }, [fetchRegistros]);
 
-  function proximoTipo(empId: number, fechaISO?: string): 'entrada' | 'salida' {
-    const fecha = fechaISO ? new Date(fechaISO).toDateString() : new Date().toDateString();
-    const deEseDia = registros.filter(
-      (r) => r.empleado_id === empId && new Date(r.timestamp).toDateString() === fecha
-    );
-    if (deEseDia.length === 0) return 'entrada';
-    return deEseDia[0].tipo === 'entrada' ? 'salida' : 'entrada';
+  function proximoTipo(registrosEmpleado: Asistencia[]): 'entrada' | 'salida' {
+    const hoy = new Date().toDateString();
+    const deHoy = registrosEmpleado.filter((r) => new Date(r.timestamp).toDateString() === hoy);
+    if (deHoy.length === 0) return 'entrada';
+    return deHoy[0].tipo === 'entrada' ? 'salida' : 'entrada';
   }
 
   async function marcarAsistencia(
-    empId: number,
-    tipo: 'entrada' | 'salida',
-    metodo: MetodoRegistro = 'manual',
-    timestampPersonalizado?: string
+    empId: number, tipo: 'entrada' | 'salida', metodo: MetodoRegistro = 'manual', timestampPersonalizado?: string
   ) {
     const { error } = await supabase.from('asistencia').insert({
-      empleado_id: empId,
-      tipo,
-      metodo_registro: metodo,
+      empleado_id: empId, tipo, metodo_registro: metodo,
       ...(timestampPersonalizado ? { timestamp: timestampPersonalizado } : {}),
     });
-    // El trigger de BD rechaza dos entradas/salidas seguidas el mismo día;
-    // el mensaje de error ya viene en español, listo para mostrar con showAlert.
     if (error) throw new Error(error.message);
     await fetchRegistros();
   }
@@ -106,10 +93,8 @@ export function useAdelantos(empleadoId?: number) {
     await fetchAdelantos();
   }
 
-  const pendientes = adelantos.filter((a) => !a.descontado && a.saldo_pendiente > 0);
-  const deudaTotalPendiente = pendientes.reduce((acc, a) => acc + a.saldo_pendiente, 0);
-
-  return { adelantos, pendientes, deudaTotalPendiente, loading, registrarAdelanto, refetch: fetchAdelantos };
+  const pendientes = adelantos.filter((a) => !a.descontado);
+  return { adelantos, pendientes, loading, registrarAdelanto, refetch: fetchAdelantos };
 }
 
 export function useNomina(empleadoId?: number) {
@@ -129,22 +114,19 @@ export function useNomina(empleadoId?: number) {
     fetchNominas();
   }, [fetchNominas]);
 
-  // Llama a la función SQL generar_nomina_semanal(p_empleado_id, p_semana_inicio),
-  // que calcula horas trabajadas, descuenta adelantos pendientes y crea la fila.
   async function generarNomina(empId: number, semanaInicioISO: string): Promise<number> {
     const { data, error } = await supabase.rpc('generar_nomina_semanal', {
-      p_empleado_id: empId,
-      p_semana_inicio: semanaInicioISO,
+      p_empleado_id: empId, p_semana_inicio: semanaInicioISO,
     });
     if (error) throw new Error(error.message);
     await fetchNominas();
     return data as number;
   }
 
-  // El trigger procesar_nomina_pagada (en la BD) genera el egreso
-  // en caja empresa automáticamente al marcar pagado = true.
+  // Va por RPC con verificación de rol admin en la BD: antes el UPDATE
+  // por RLS afectaba 0 filas sin error para no-admins (feedback fantasma).
   async function marcarPagada(nominaId: number) {
-    const { error } = await supabase.from('nomina').update({ pagado: true }).eq('id', nominaId);
+    const { error } = await supabase.rpc('marcar_nomina_pagada', { p_nomina_id: nominaId });
     if (error) throw new Error(error.message);
     await fetchNominas();
   }

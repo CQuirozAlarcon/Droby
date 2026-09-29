@@ -1,23 +1,27 @@
-// app/(tabs)/rrhh/nomina.tsx
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, FlatList } from 'react-native';
 import { colors, radius, spacing } from '@/lib/theme';
 import { useEmpleados, useNomina } from '@/hooks/useRRHH';
+import { useAuth } from '@/hooks/useAuth';
 import { EmptyState } from '@/components/EmptyState';
+import { SoloAdmin } from '@/components/SoloAdmin';
 import { Select } from '@/components/Select';
 import { showAlert } from '@/lib/alert';
+import { fechaLocalISO } from '@/lib/fecha';
 
-// Calcula el lunes de la semana actual en formato YYYY-MM-DD
 function lunesDeEstaSemana(): string {
   const hoy = new Date();
-  const dia = hoy.getDay(); // 0 = domingo
+  const dia = hoy.getDay();
   const diff = dia === 0 ? -6 : 1 - dia;
   const lunes = new Date(hoy);
   lunes.setDate(hoy.getDate() + diff);
-  return lunes.toISOString().split('T')[0];
+  // fecha LOCAL (no UTC): con toISOString(), después de las 19:00 en Perú
+  // (UTC-5) la nómina se generaba empezando en martes
+  return fechaLocalISO(lunes);
 }
 
 export default function NominaScreen() {
+  const { rol } = useAuth();
   const { empleados } = useEmpleados();
   const [empleadoId, setEmpleadoId] = useState<number | null>(empleados[0]?.id ?? null);
 
@@ -28,15 +32,16 @@ export default function NominaScreen() {
   const [semanaInicio, setSemanaInicio] = useState(lunesDeEstaSemana());
   const [generando, setGenerando] = useState(false);
 
+  // generar/pagar nómina es exclusivo de admin (también validado en la BD)
+  if (rol !== 'admin') return <SoloAdmin />;
+
   function nombreEmpleado(id: number) {
     return empleados.find((e) => e.id === id)?.nombre ?? `Empleado #${id}`;
   }
 
   async function handleGenerar() {
     if (!empleadoId) return showAlert('Selecciona un empleado');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(semanaInicio)) {
-      return showAlert('Fecha inválida', 'Formato requerido: YYYY-MM-DD (debe ser un lunes)');
-    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(semanaInicio)) return showAlert('Fecha inválida', 'Formato requerido: YYYY-MM-DD (debe ser un lunes)');
     setGenerando(true);
     try {
       await generarNomina(empleadoId, semanaInicio);
@@ -59,12 +64,12 @@ export default function NominaScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Empleado</Text>
-      <Select
+      <Select<number>
         value={empleadoId}
-        onChange={setEmpleadoId}
-        searchable
-        placeholder="Selecciona un empleado"
         options={empleados.map((e) => ({ label: e.nombre, value: e.id }))}
+        onChange={setEmpleadoId}
+        placeholder="Selecciona un empleado"
+        accessibilityLabel="Empleado"
       />
 
       <Text style={styles.label}>Semana (lunes de inicio)</Text>
@@ -81,9 +86,7 @@ export default function NominaScreen() {
         renderItem={({ item }) => (
           <View style={styles.card}>
             <Text style={styles.nombre}>{nombreEmpleado(item.empleado_id)}</Text>
-            <Text style={styles.periodo}>
-              {item.semana_inicio} → {item.semana_fin}
-            </Text>
+            <Text style={styles.periodo}>{item.semana_inicio} → {item.semana_fin}</Text>
             <View style={styles.detalleRow}>
               <Text style={styles.detalleLabel}>Horas trabajadas</Text>
               <Text style={styles.detalleValor}>{item.horas_trabajadas.toFixed(2)} h</Text>
@@ -100,11 +103,8 @@ export default function NominaScreen() {
               <Text style={styles.totalLabel}>Total a pagar</Text>
               <Text style={styles.totalValor}>S/ {item.total_pagar.toFixed(2)}</Text>
             </View>
-
             {item.pagado ? (
-              <View style={styles.pagadoBadge}>
-                <Text style={styles.pagadoText}>✓ Pagado</Text>
-              </View>
+              <View style={styles.pagadoBadge}><Text style={styles.pagadoText}>✓ Pagado</Text></View>
             ) : (
               <Pressable style={styles.pagarButton} onPress={() => handlePagar(item.id)}>
                 <Text style={styles.pagarText}>Marcar como pagado</Text>

@@ -1,37 +1,51 @@
-import { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, Pressable, FlatList, StyleSheet } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, TextInput, Text, Pressable, StyleSheet, FlatList } from 'react-native';
 import { colors, radius, spacing } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { Cliente } from '@/types/database';
 
 interface Props {
   value: string;
-  onChangeText: (text: string) => void;
-  onSelect: (cliente: Cliente) => void;
+  onChangeText: (t: string) => void;
+  onSelectCliente: (c: Cliente) => void;
+  placeholder?: string;
 }
 
-export function ClienteAutocomplete({ value, onChangeText, onSelect }: Props) {
+// Autocompletado de clientes con búsqueda debounced en Supabase. Si el usuario
+// escribe un nombre que no existe, se deja pasar tal cual (se crea al confirmar
+// la venta/consignación), por eso no se fuerza selección de la lista.
+export function ClienteAutocomplete({ value, onChangeText, onSelectCliente, placeholder }: Props) {
   const [resultados, setResultados] = useState<Cliente[]>([]);
-  const [mostrar, setMostrar] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mostrarLista, setMostrarLista] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // guarda de orden: si la búsqueda vieja responde después que la nueva
+  // (red lenta), sus resultados stale no pisan a los frescos
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
-    if (timer.current) clearTimeout(timer.current);
-    if (!value.trim()) {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    // se quitan los comodines de LIKE para que un "%" o "_" tecleado por el
+    // usuario no actúe como patrón SQL (ej. "%" listaba TODOS los clientes)
+    const termino = value.trim().replace(/[%_]/g, '');
+    if (!termino) {
       setResultados([]);
       return;
     }
-    timer.current = setTimeout(async () => {
-      const { data } = await supabase
+    timeoutRef.current = setTimeout(async () => {
+      const requestId = ++requestIdRef.current;
+      const { data, error } = await supabase
         .from('clientes')
         .select('*')
-        .ilike('nombre', `%${value.trim()}%`)
-        .order('nombre')
-        .limit(8);
-      setResultados((data as Cliente[]) ?? []);
-    }, 250);
+        .ilike('nombre', `%${termino}%`)
+        .limit(6);
+      if (error) {
+        console.warn('Error buscando clientes:', error.message);
+        return;
+      }
+      if (requestId === requestIdRef.current) setResultados((data as Cliente[]) ?? []);
+    }, 300);
     return () => {
-      if (timer.current) clearTimeout(timer.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [value]);
 
@@ -39,35 +53,39 @@ export function ClienteAutocomplete({ value, onChangeText, onSelect }: Props) {
     <View>
       <TextInput
         style={styles.input}
-        placeholder="Nombre del cliente"
+        placeholder={placeholder ?? 'Nombre del cliente'}
         placeholderTextColor={colors.textMuted}
+        accessibilityLabel={placeholder ?? 'Nombre del cliente'}
+        accessibilityHint="Escribe para buscar clientes existentes o ingresa uno nuevo"
         value={value}
         onChangeText={(t) => {
           onChangeText(t);
-          setMostrar(true);
+          setMostrarLista(true);
         }}
-        onFocus={() => setMostrar(true)}
+        onFocus={() => setMostrarLista(true)}
       />
-      {mostrar && resultados.length > 0 && (
+      {mostrarLista && resultados.length > 0 && (
         <View style={styles.dropdown}>
           <FlatList
             data={resultados}
             keyExtractor={(item) => String(item.id)}
-            keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => (
               <Pressable
-                style={styles.option}
+                style={styles.item}
                 onPress={() => {
-                  onSelect(item);
+                  onSelectCliente(item);
                   onChangeText(item.nombre);
-                  setMostrar(false);
-                  setResultados([]);
+                  setMostrarLista(false);
                 }}
               >
-                <Text style={styles.optionText}>{item.nombre}</Text>
-                <Text style={styles.optionSub}>
-                  {item.tipo_cliente}{item.telefono ? ` · ${item.telefono}` : ''}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemText}>{item.nombre}</Text>
+                  <Text style={styles.itemSub}>
+                    {item.tipo_cliente}
+                    {item.documento ? ` · ${item.documento}` : ''}
+                    {item.telefono ? ` · ${item.telefono}` : ''}
+                  </Text>
+                </View>
               </Pressable>
             )}
           />
@@ -78,9 +96,23 @@ export function ClienteAutocomplete({ value, onChangeText, onSelect }: Props) {
 }
 
 const styles = StyleSheet.create({
-  input: { backgroundColor: colors.surface, color: colors.text, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
-  dropdown: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginTop: spacing.xs, maxHeight: 220, overflow: 'hidden' },
-  option: { padding: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
-  optionText: { color: colors.text, fontSize: 14, fontWeight: '600' },
-  optionSub: { color: colors.textMuted, fontSize: 11, marginTop: 2, textTransform: 'capitalize' },
+  input: {
+    backgroundColor: colors.surface,
+    color: colors.text,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dropdown: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    marginTop: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    maxHeight: 180,
+  },
+  item: { padding: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
+  itemText: { color: colors.text, fontSize: 14 },
+  itemSub: { color: colors.textMuted, fontSize: 11, textTransform: 'capitalize' },
 });

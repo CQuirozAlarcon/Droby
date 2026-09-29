@@ -37,16 +37,22 @@ export interface Cliente {
   nombre: string;
   tipo_cliente: TipoCliente;
   telefono: string | null;
+  // RUC o DNI. Opcional: pensado para identificar al cliente y, más
+  // adelante, generar facturas. No se valida formato en la BD.
+  documento: string | null;
   created_at: string;
 }
 
 export interface Venta {
   id: number;
-  cliente_id: number;
+  cliente_id: number | null;
   estado: EstadoVenta;
   total: number;
   caja_destino: CajaDestino;
   created_at: string;
+  // Relación embebida (select con join) — presente solo cuando se pide explícitamente
+  clientes?: { nombre: string } | null;
+  venta_items?: VentaItemConProducto[];
 }
 
 export interface VentaItem {
@@ -58,6 +64,10 @@ export interface VentaItem {
   subtotal: number;
 }
 
+export interface VentaItemConProducto extends VentaItem {
+  productos?: { modelo: string; tipo: TipoProducto; variante: string | null } | null;
+}
+
 export interface VentaItemInput {
   producto_id: number;
   cantidad: number;
@@ -66,22 +76,40 @@ export interface VentaItemInput {
 
 export interface Consignacion {
   id: number;
-  vendedor_id: number;
+  cliente_id: number;
   estado: EstadoConsignacion;
   fecha_entrega: string;
   fecha_limite: string | null;
-  monto_total: number | null;
+  monto_total: number;
   monto_cobrado: number;
+  saldo_pendiente: number;
+  caja_destino: CajaDestino;
+  created_at: string;
+  clientes?: { nombre: string; telefono: string | null } | null;
+  consignacion_items?: ConsignacionItemConProducto[];
+  consignacion_pagos?: ConsignacionPago[];
 }
 
 export interface ConsignacionItem {
   id: number;
   consignacion_id: number;
   producto_id: number;
-  cantidad_entregada: number;
-  cantidad_devuelta: number;
-  cantidad_vendida: number;
+  cantidad: number;
   precio_unitario: number;
+  subtotal: number;
+}
+
+export interface ConsignacionItemConProducto extends ConsignacionItem {
+  productos?: { modelo: string; tipo: TipoProducto; variante: string | null } | null;
+}
+
+export interface ConsignacionPago {
+  id: number;
+  consignacion_id: number;
+  monto: number;
+  fecha: string;
+  nota: string | null;
+  created_at: string;
 }
 
 export interface Caja {
@@ -106,6 +134,7 @@ export interface Empleado {
   nombre: string;
   salario_hora: number;
   activo: boolean;
+  user_id: string | null; // vínculo opcional con auth.users (para "marcar mi entrada")
   created_at: string;
 }
 
@@ -121,7 +150,6 @@ export interface Adelanto {
   id: number;
   empleado_id: number;
   monto: number;
-  saldo_pendiente: number;
   fecha: string;
   motivo: string | null;
   descontado: boolean;
@@ -140,4 +168,9 @@ export interface Nomina {
   total_pagar: number;
   pagado: boolean;
   created_at: string;
+}
+
+export interface UserRole {
+  user_id: string;
+  role: Rol;
 }

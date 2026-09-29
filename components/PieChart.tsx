@@ -15,16 +15,10 @@ interface Props {
   centroValor: string;
 }
 
-// Gráfico circular tipo torta/dona: cada segmento es un arco de Circle
-// dibujado con strokeDasharray, rotados acumulativamente para formar
-// las porciones proporcionales al total.
 export function PieChart({ segmentos, size = 130, strokeWidth = 18, centroLabel, centroValor }: Props) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const total = Math.max(
-    segmentos.reduce((acc, s) => acc + Math.max(s.valor, 0), 0),
-    0.01
-  );
+  const total = Math.max(segmentos.reduce((acc, s) => acc + Math.max(s.valor, 0), 0), 0.01);
 
   let acumulado = 0;
   const arcos = segmentos.map((seg, i) => {
@@ -37,16 +31,13 @@ export function PieChart({ segmentos, size = 130, strokeWidth = 18, centroLabel,
   });
 
   return (
-    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+    <View
+      style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}
+      accessibilityRole="summary"
+      accessibilityLabel={`${centroLabel}: ${centroValor}`}
+    >
       <Svg width={size} height={size} style={{ position: 'absolute' }}>
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={colors.border}
-          strokeWidth={strokeWidth}
-          fill="none"
-        />
+        <Circle cx={size / 2} cy={size / 2} r={radius} stroke={colors.border} strokeWidth={strokeWidth} fill="none" />
         {arcos.map((arco) => (
           <Circle
             key={arco.key}

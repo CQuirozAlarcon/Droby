@@ -5,9 +5,14 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL as string;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (
+  !supabaseUrl ||
+  !supabaseAnonKey ||
+  supabaseUrl.includes('TU_PROYECTO') ||
+  supabaseAnonKey.includes('TU_ANON_KEY')
+) {
   throw new Error(
-    'Faltan EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY. Copia .env.example a .env y complétalo.'
+    'Supabase no está configurado: edita el archivo .env con tu EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY reales (Supabase → Settings → API) y reinicia el servidor de Expo.'
   );
 }
 
@@ -18,7 +23,5 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: false,
   },
-  realtime: {
-    params: { eventsPerSecond: 5 },
-  },
+  realtime: { params: { eventsPerSecond: 5 } },
 });

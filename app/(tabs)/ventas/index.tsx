@@ -2,21 +2,33 @@ import { View, Text, FlatList, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, radius, spacing } from '@/lib/theme';
 import { useVentas } from '@/hooks/useVentas';
+import { useFocusRefetch } from '@/hooks/useFocusRefetch';
 import { EmptyState } from '@/components/EmptyState';
 
 export default function VentasScreen() {
   const router = useRouter();
-  const { ventas, loading } = useVentas();
+  const { ventas, loading, nombreVenta, refetch } = useVentas();
+  // al volver de crear/cancelar una venta, la lista se refresca sola
+  useFocusRefetch(refetch);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, padding: spacing.md }}>
+      <Pressable style={styles.consignacionesBanner} onPress={() => router.push('/ventas/consignaciones')}>
+        <Text style={styles.consignacionesEmoji}>📑</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.consignacionesTitulo}>Consignaciones</Text>
+          <Text style={styles.consignacionesDesc}>Ver deudas por cobrar y registrar pagos</Text>
+        </View>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
+
       <FlatList
         data={ventas}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <Pressable style={styles.card} onPress={() => router.push(`/ventas/${item.id}`)}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.id}>Venta #{item.id}</Text>
+              <Text style={styles.id}>{nombreVenta(item)}</Text>
               <Text style={styles.fecha}>{new Date(item.created_at).toLocaleString('es-PE')}</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
@@ -31,13 +43,13 @@ export default function VentasScreen() {
                 {item.estado}
               </Text>
             </View>
-          </View>
+          </Pressable>
         )}
         ListEmptyComponent={<EmptyState message={loading ? 'Cargando...' : 'Aún no hay ventas registradas'} />}
         contentContainerStyle={{ paddingBottom: spacing.xl * 2 }}
       />
 
-      <Pressable style={styles.fab} onPress={() => router.push('/ventas/nueva')}>
+      <Pressable style={styles.fab} onPress={() => router.push('/ventas/nueva')} accessibilityRole="button" accessibilityLabel="Nueva venta o consignación">
         <Text style={styles.fabText}>+</Text>
       </Pressable>
     </View>
@@ -45,6 +57,21 @@ export default function VentasScreen() {
 }
 
 const styles = StyleSheet.create({
+  consignacionesBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.porCobrar,
+  },
+  consignacionesEmoji: { fontSize: 24 },
+  consignacionesTitulo: { color: colors.text, fontWeight: '700', fontSize: 14 },
+  consignacionesDesc: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+  chevron: { color: colors.textMuted, fontSize: 22 },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,

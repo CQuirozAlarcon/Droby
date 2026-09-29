@@ -9,13 +9,19 @@ interface Props {
 
 export function ProductCard({ producto, onPress }: Props) {
   const stockBajo = producto.stock_actual < producto.stock_minimo;
+  const tipoTexto = producto.tipo === 'funda' ? 'Funda' : 'Cargador';
 
   return (
-    <Pressable style={styles.card} onPress={onPress}>
+    <Pressable
+      style={styles.card}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${tipoTexto} ${producto.modelo}${producto.variante ? ` ${producto.variante}` : ''}, ${producto.stock_actual} en stock${stockBajo ? ', stock bajo' : ''}`}
+    >
       <View style={{ flex: 1 }}>
         <Text style={styles.modelo}>{producto.modelo}</Text>
         <Text style={styles.tipo}>
-          {producto.tipo === 'funda' ? 'Funda' : 'Cargador'}
+          {tipoTexto}
           {producto.variante ? ` · ${producto.variante}` : ''}
         </Text>
       </View>
@@ -42,11 +48,6 @@ const styles = StyleSheet.create({
   stockBox: { alignItems: 'flex-end', marginRight: spacing.sm },
   stock: { color: colors.text, fontSize: 20, fontWeight: '700' },
   stockLabel: { color: colors.textMuted, fontSize: 11 },
-  badge: {
-    backgroundColor: colors.danger,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-  },
+  badge: { backgroundColor: colors.danger, borderRadius: radius.sm, paddingHorizontal: spacing.xs, paddingVertical: 2 },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
 });

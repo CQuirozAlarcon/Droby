@@ -2,154 +2,150 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { TipoProducto } from '@/types/database';
 
-export interface StatProducto {
-  id: number;
+export interface RankingProducto {
+  producto_id: number;
   modelo: string;
+  tipo: TipoProducto;
   variante: string | null;
-  stock_actual: number;
-  unidades_vendidas: number;
+  unidadesVendidas: number;
   ingresos: number;
 }
 
-export function useEstadisticasProductos() {
-  const [fundas, setFundas] = useState<StatProducto[]>([]);
-  const [cargadores, setCargadores] = useState<StatProducto[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchDatos = useCallback(async () => {
-    setLoading(true);
-    const [{ data: productos }, { data: items }] = await Promise.all([
-      supabase.from('productos').select('*'),
-      supabase.from('venta_items').select('producto_id, cantidad, subtotal'),
-    ]);
-
-    const agregados = new Map<number, { unidades: number; ingresos: number }>();
-    (items ?? []).forEach((it: any) => {
-      const prev = agregados.get(it.producto_id) ?? { unidades: 0, ingresos: 0 };
-      prev.unidades += it.cantidad;
-      prev.ingresos += Number(it.subtotal);
-      agregados.set(it.producto_id, prev);
-    });
-
-    const armar = (tipo: TipoProducto): StatProducto[] =>
-      (productos ?? [])
-        .filter((p: any) => p.tipo === tipo)
-        .map((p: any) => ({
-          id: p.id,
-          modelo: p.modelo,
-          variante: p.variante,
-          stock_actual: p.stock_actual,
-          unidades_vendidas: agregados.get(p.id)?.unidades ?? 0,
-          ingresos: agregados.get(p.id)?.ingresos ?? 0,
-        }))
-        .sort((a, b) => b.unidades_vendidas - a.unidades_vendidas);
-
-    setFundas(armar('funda'));
-    setCargadores(armar('cargador'));
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchDatos();
-  }, [fetchDatos]);
-
-  return { fundas, cargadores, loading, refetch: fetchDatos };
+export interface ModeloPreferido {
+  modelo: string;
+  tipo: TipoProducto;
+  cantidad: number;
 }
 
-export interface StatCliente {
+export interface RankingCliente {
   cliente_id: number;
   nombre: string;
-  unidades_fundas: number;
-  unidades_cargadores: number;
-  total_comprado: number;
+  totalComprado: number;
+  numeroVentas: number;
+  modelosPreferidos: ModeloPreferido[]; // ordenados de mayor a menor cantidad
 }
 
-export function useEstadisticasClientes() {
-  const [clientes, setClientes] = useState<StatCliente[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchDatos = useCallback(async () => {
-    setLoading(true);
-    // Embedded select: requiere las FKs ya existentes en el esquema.
-    const { data, error } = await supabase
-      .from('venta_items')
-      .select('cantidad, subtotal, productos(tipo), ventas(cliente_id, clientes(id, nombre))');
-
-    if (error || !data) {
-      setLoading(false);
-      return;
-    }
-
-    const agregados = new Map<number, StatCliente>();
-    (data as any[]).forEach((row) => {
-      const cliente = row.ventas?.clientes;
-      if (!cliente) return;
-      const tipo = row.productos?.tipo as TipoProducto | undefined;
-      const prev = agregados.get(cliente.id) ?? {
-        cliente_id: cliente.id,
-        nombre: cliente.nombre,
-        unidades_fundas: 0,
-        unidades_cargadores: 0,
-        total_comprado: 0,
-      };
-      if (tipo === 'funda') prev.unidades_fundas += row.cantidad;
-      if (tipo === 'cargador') prev.unidades_cargadores += row.cantidad;
-      prev.total_comprado += Number(row.subtotal);
-      agregados.set(cliente.id, prev);
-    });
-
-    setClientes(Array.from(agregados.values()).sort((a, b) => b.total_comprado - a.total_comprado));
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchDatos();
-  }, [fetchDatos]);
-
-  return { clientes, loading, refetch: fetchDatos };
-}
-
-export interface StatEmpleado {
+export interface RankingEmpleado {
   empleado_id: number;
   nombre: string;
-  horas_totales: number;
-  total_pagado: number;
-  adelantos_pendientes: number;
+  horasTrabajadas: number;
+  totalPagado: number;
+  totalAdelantos: number;
 }
 
-export function useEstadisticasEmpleados() {
-  const [empleados, setEmpleados] = useState<StatEmpleado[]>([]);
+// Todas las agregaciones se hacen en el cliente a partir de las filas crudas:
+// el volumen de datos de este negocio (ventas/nómina de una pyme) es lo
+// bastante chico para que no valga la pena mantener vistas materializadas
+// en Postgres solo para esto.
+export function useEstadisticas() {
+  const [topProductos, setTopProductos] = useState<RankingProducto[]>([]);
+  const [rankingClientes, setRankingClientes] = useState<RankingCliente[]>([]);
+  const [rankingEmpleados, setRankingEmpleados] = useState<RankingEmpleado[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchDatos = useCallback(async () => {
+  const fetchTodo = useCallback(async () => {
     setLoading(true);
-    const [{ data: emp }, { data: nom }, { data: adel }] = await Promise.all([
-      supabase.from('empleados').select('id, nombre').eq('activo', true),
-      supabase.from('nomina').select('empleado_id, horas_trabajadas, total_pagar'),
-      supabase.from('adelantos').select('empleado_id, saldo_pendiente, descontado'),
-    ]);
+    try {
+      const [ventasRes, consigRes, nominaRes] = await Promise.all([
+        supabase
+          .from('ventas')
+          .select('id, cliente_id, estado, clientes(nombre), venta_items(cantidad, precio_unitario, subtotal, producto_id, productos(modelo, tipo, variante))')
+          .eq('estado', 'completada'),
+        supabase
+          .from('consignaciones')
+          .select('id, cliente_id, clientes(nombre), consignacion_items(cantidad, precio_unitario, subtotal, producto_id, productos(modelo, tipo, variante))'),
+        supabase.from('nomina').select('empleado_id, horas_trabajadas, total_pagar, total_adelantos, empleados(nombre)'),
+      ]);
 
-    const resultado = (emp ?? []).map((e: any) => {
-      const horas = (nom ?? [])
-        .filter((n: any) => n.empleado_id === e.id)
-        .reduce((acc: number, n: any) => acc + Number(n.horas_trabajadas), 0);
-      const pagado = (nom ?? [])
-        .filter((n: any) => n.empleado_id === e.id)
-        .reduce((acc: number, n: any) => acc + Number(n.total_pagar), 0);
-      const deuda = (adel ?? [])
-        .filter((a: any) => a.empleado_id === e.id && !a.descontado)
-        .reduce((acc: number, a: any) => acc + Number(a.saldo_pendiente), 0);
+      if (ventasRes.error) throw new Error(ventasRes.error.message);
+      if (consigRes.error) throw new Error(consigRes.error.message);
+      // La nómina solo es legible por admin (RLS): para empleados degradamos
+      // a lista vacía en vez de tumbar TODAS las estadísticas del hook.
+      if (nominaRes.error) console.warn('Sin acceso a nómina para estadísticas:', nominaRes.error.message);
+      const nominaData = nominaRes.error ? [] : ((nominaRes.data as any[]) ?? []);
 
-      return { empleado_id: e.id, nombre: e.nombre, horas_totales: horas, total_pagado: pagado, adelantos_pendientes: deuda };
-    });
+      const productoMap = new Map<number, RankingProducto>();
+      const clienteMap = new Map<number, { nombre: string; total: number; ventas: number; modelos: Map<string, ModeloPreferido> }>();
 
-    setEmpleados(resultado.sort((a, b) => b.horas_totales - a.horas_totales));
-    setLoading(false);
+      function acumularItems(items: any[], clienteId: number, nombreCliente: string, cuentaComoVenta: boolean) {
+        if (!clienteMap.has(clienteId)) {
+          clienteMap.set(clienteId, { nombre: nombreCliente, total: 0, ventas: 0, modelos: new Map() });
+        }
+        const entradaCliente = clienteMap.get(clienteId)!;
+        if (cuentaComoVenta) entradaCliente.ventas += 1;
+
+        for (const item of items ?? []) {
+          const prod = item.productos;
+          if (!prod) continue;
+          const subtotal = Number(item.subtotal ?? item.cantidad * item.precio_unitario);
+          entradaCliente.total += subtotal;
+
+          const claveModelo = `${prod.tipo}::${prod.modelo}`;
+          const existenteModelo = entradaCliente.modelos.get(claveModelo);
+          if (existenteModelo) existenteModelo.cantidad += item.cantidad;
+          else entradaCliente.modelos.set(claveModelo, { modelo: prod.modelo, tipo: prod.tipo, cantidad: item.cantidad });
+
+          if (!productoMap.has(item.producto_id)) {
+            productoMap.set(item.producto_id, {
+              producto_id: item.producto_id, modelo: prod.modelo, tipo: prod.tipo, variante: prod.variante,
+              unidadesVendidas: 0, ingresos: 0,
+            });
+          }
+          const entradaProducto = productoMap.get(item.producto_id)!;
+          entradaProducto.unidadesVendidas += item.cantidad;
+          entradaProducto.ingresos += subtotal;
+        }
+      }
+
+      for (const venta of (ventasRes.data as any[]) ?? []) {
+        acumularItems(venta.venta_items, venta.cliente_id, venta.clientes?.nombre ?? `Cliente #${venta.cliente_id}`, true);
+      }
+      for (const cons of (consigRes.data as any[]) ?? []) {
+        acumularItems(cons.consignacion_items, cons.cliente_id, cons.clientes?.nombre ?? `Cliente #${cons.cliente_id}`, false);
+      }
+
+      const productosOrdenados = Array.from(productoMap.values()).sort((a, b) => b.unidadesVendidas - a.unidadesVendidas);
+
+      const clientesOrdenados: RankingCliente[] = Array.from(clienteMap.entries())
+        .map(([cliente_id, v]) => ({
+          cliente_id,
+          nombre: v.nombre,
+          totalComprado: v.total,
+          numeroVentas: v.ventas,
+          modelosPreferidos: Array.from(v.modelos.values()).sort((a, b) => b.cantidad - a.cantidad),
+        }))
+        .sort((a, b) => b.totalComprado - a.totalComprado);
+
+      const empleadoMap = new Map<number, RankingEmpleado>();
+      for (const n of nominaData) {
+        if (!empleadoMap.has(n.empleado_id)) {
+          empleadoMap.set(n.empleado_id, {
+            empleado_id: n.empleado_id, nombre: n.empleados?.nombre ?? `Empleado #${n.empleado_id}`,
+            horasTrabajadas: 0, totalPagado: 0, totalAdelantos: 0,
+          });
+        }
+        const e = empleadoMap.get(n.empleado_id)!;
+        e.horasTrabajadas += Number(n.horas_trabajadas);
+        e.totalPagado += Number(n.total_pagar);
+        e.totalAdelantos += Number(n.total_adelantos);
+      }
+      const empleadosOrdenados = Array.from(empleadoMap.values()).sort((a, b) => b.horasTrabajadas - a.horasTrabajadas);
+
+      setTopProductos(productosOrdenados);
+      setRankingClientes(clientesOrdenados);
+      setRankingEmpleados(empleadosOrdenados);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    fetchDatos();
-  }, [fetchDatos]);
+    fetchTodo();
+  }, [fetchTodo]);
 
-  return { empleados, loading, refetch: fetchDatos };
+  return { topProductos, rankingClientes, rankingEmpleados, loading, error, refetch: fetchTodo };
 }

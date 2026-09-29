@@ -14,9 +14,23 @@
     "android": {
       "package": "com.tuempresa.erpaccesorios"
     },
-    "plugins": ["expo-router", "expo-secure-store"],
+    "web": {
+      "name": "ERP Accesorios",
+      "shortName": "ERP Accesorios",
+      "description": "Gestión de inventario, ventas, consignaciones, finanzas y RRHH para negocios de accesorios de telefonía.",
+      "lang": "es",
+      "themeColor": "#0F172A",
+      "backgroundColor": "#0F172A"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
+    ],
     "extra": {
-      "router": { "origin": false }
+      "router": {
+        "origin": false
+      }
     }
   }
 }

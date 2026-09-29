@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthContext, useAuthState } from '@/hooks/useAuth';
 import { colors } from '@/lib/theme';
+import { FeedbackHost } from '@/components/FeedbackHost';
 import { View, ActivityIndicator } from 'react-native';
 
 export default function RootLayout() {
@@ -12,15 +13,13 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (auth.loading) return;
-
     const enAuth = segments[0] === '(auth)';
-
     if (!auth.session && !enAuth) {
       router.replace('/(auth)/login');
     } else if (auth.session && enAuth) {
       router.replace('/(tabs)');
     }
-  }, [auth.session, auth.loading, segments]);
+  }, [auth.session, auth.loading, segments, router]);
 
   if (auth.loading) {
     return (
@@ -32,8 +31,10 @@ export default function RootLayout() {
 
   return (
     <AuthContext.Provider value={auth}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false }} />
+      {/* Avisos globales (toast + confirmaciones) del tema oscuro */}
+      <FeedbackHost />
     </AuthContext.Provider>
   );
 }

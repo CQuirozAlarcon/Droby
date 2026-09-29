@@ -1,19 +1,24 @@
-// app/(tabs)/rrhh/empleado/[id].tsx
 import { useLocalSearchParams } from 'expo-router';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { colors, radius, spacing } from '@/lib/theme';
 import { useEmpleados, useNomina, useAdelantos } from '@/hooks/useRRHH';
+import { useAuth } from '@/hooks/useAuth';
 import { EmptyState } from '@/components/EmptyState';
+import { SoloAdmin } from '@/components/SoloAdmin';
 
 export default function DetalleEmpleadoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const empleadoId = Number(id);
+  const { rol } = useAuth();
   const { empleados } = useEmpleados();
   const { nominas } = useNomina(empleadoId);
   const { adelantos } = useAdelantos(empleadoId);
 
-  const empleado = empleados.find((e) => e.id === empleadoId);
+  // nómina y adelantos solo son legibles por admin (RLS): el detalle del
+  // empleado no muestra nada útil a otros roles, así que se avisa claro
+  if (rol !== 'admin') return <SoloAdmin />;
 
+  const empleado = empleados.find((e) => e.id === empleadoId);
   if (!empleado) {
     return (
       <View style={styles.container}>
@@ -22,9 +27,7 @@ export default function DetalleEmpleadoScreen() {
     );
   }
 
-  const totalAdelantosPendientes = adelantos
-    .filter((a) => !a.descontado)
-    .reduce((acc, a) => acc + a.saldo_pendiente, 0);
+  const totalAdelantosPendientes = adelantos.filter((a) => !a.descontado).reduce((acc, a) => acc + a.monto, 0);
 
   return (
     <View style={styles.container}>
@@ -33,9 +36,7 @@ export default function DetalleEmpleadoScreen() {
 
       {totalAdelantosPendientes > 0 && (
         <View style={styles.alertBox}>
-          <Text style={styles.alertText}>
-            Tiene S/ {totalAdelantosPendientes.toFixed(2)} en adelantos pendientes de descontar en la próxima nómina.
-          </Text>
+          <Text style={styles.alertText}>Tiene S/ {totalAdelantosPendientes.toFixed(2)} en adelantos pendientes de descontar en la próxima nómina.</Text>
         </View>
       )}
 
@@ -49,9 +50,7 @@ export default function DetalleEmpleadoScreen() {
             <Text style={styles.periodo}>{item.semana_inicio} → {item.semana_fin}</Text>
             <View style={styles.cardRow}>
               <Text style={styles.cardLabel}>{item.horas_trabajadas.toFixed(2)} h trabajadas</Text>
-              <Text style={[styles.cardValue, item.pagado ? { color: colors.success } : { color: colors.warning }]}>
-                {item.pagado ? 'Pagado' : 'Pendiente'}
-              </Text>
+              <Text style={[styles.cardValue, item.pagado ? { color: colors.success } : { color: colors.warning }]}>{item.pagado ? 'Pagado' : 'Pendiente'}</Text>
             </View>
             <Text style={styles.total}>S/ {item.total_pagar.toFixed(2)}</Text>
           </View>
@@ -68,13 +67,7 @@ export default function DetalleEmpleadoScreen() {
           <View style={styles.card}>
             <View style={styles.cardRow}>
               <Text style={styles.cardLabel}>{item.motivo}</Text>
-              <Text style={[styles.cardValue, item.descontado ? { color: colors.success } : { color: colors.warning }]}>
-                {item.descontado
-                  ? 'Descontado'
-                  : item.saldo_pendiente < item.monto
-                  ? `Pendiente: S/ ${item.saldo_pendiente.toFixed(2)}`
-                  : 'Pendiente'}
-              </Text>
+              <Text style={[styles.cardValue, item.descontado ? { color: colors.success } : { color: colors.warning }]}>{item.descontado ? 'Descontado' : 'Pendiente'}</Text>
             </View>
             <Text style={styles.total}>S/ {item.monto.toFixed(2)}</Text>
           </View>

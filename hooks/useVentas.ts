@@ -2,6 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { CajaDestino, Venta, VentaItemInput } from '@/types/database';
 
+// select con joins: trae el nombre del cliente y, por cada item, el modelo/tipo
+// del producto — necesario para mostrar "Venta a {cliente}" en la lista y el
+// detalle completo (qué modelos se vendieron) en la pantalla de detalle.
+const SELECT_VENTA_COMPLETA = '*, clientes(nombre), venta_items(*, productos(modelo, tipo, variante))';
+
 export function useVentas() {
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [loading, setLoading] = useState(true);
@@ -11,12 +16,15 @@ export function useVentas() {
     setLoading(true);
     const { data, error } = await supabase
       .from('ventas')
-      .select('*')
+      .select(SELECT_VENTA_COMPLETA)
       .order('created_at', { ascending: false })
       .limit(100);
 
     if (error) setError(error.message);
-    else setVentas(data as Venta[]);
+    else {
+      setVentas(data as unknown as Venta[]);
+      setError(null);
+    }
     setLoading(false);
   }, []);
 
@@ -24,9 +32,10 @@ export function useVentas() {
     fetchVentas();
   }, [fetchVentas]);
 
-  // Los triggers procesar_venta_item y procesar_venta_financiero
-  // (definidos en la BD) descuentan stock e insertan el movimiento
-  // financiero automáticamente al insertar en ventas/venta_items.
+  // La creación y cancelación van por RPC transaccional en la BD:
+  // validan stock, calculan el total en servidor y todo ocurre en una
+  // sola transacción (si algo falla, nada queda a medias — antes el
+  // rollback manual dejaba dinero fantasma en caja).
   async function crearVenta(
     clienteId: number,
     items: VentaItemInput[],
@@ -34,36 +43,40 @@ export function useVentas() {
   ) {
     if (items.length === 0) throw new Error('La venta necesita al menos un producto');
 
-    const total = items.reduce((acc, it) => acc + it.cantidad * it.precio_unitario, 0);
-
-    const { data: ventaData, error: errVenta } = await supabase
-      .from('ventas')
-      .insert({ cliente_id: clienteId, total, caja_destino: cajaDestino, estado: 'completada' })
-      .select()
-      .single();
-
-    if (errVenta) throw new Error(errVenta.message);
-
-    const itemsPayload = items.map((it) => ({ ...it, venta_id: ventaData.id }));
-    const { error: errItems } = await supabase.from('venta_items').insert(itemsPayload);
-
-    if (errItems) {
-      // Rollback manual de la venta si fallan los items (Supabase JS no soporta transacciones multi-tabla)
-      await supabase.from('ventas').delete().eq('id', ventaData.id);
-      throw new Error(errItems.message);
-    }
+    const { data: ventaId, error } = await supabase.rpc('crear_venta', {
+      p_cliente_id: clienteId,
+      p_items: items,
+      p_caja_destino: cajaDestino,
+    });
+    if (error) throw new Error(error.message);
 
     await fetchVentas();
-    return ventaData as Venta;
+    const venta = await obtenerVentaPorId(ventaId as number);
+    if (!venta) throw new Error('La venta se creó pero no se pudo recargar');
+    return venta;
   }
 
+  // Cancelar revierte automáticamente el stock y el ingreso en caja
+  // (trigger revertir_venta_cancelada en la BD).
   async function cancelarVenta(ventaId: number) {
-    const { error } = await supabase.from('ventas').update({ estado: 'cancelada' }).eq('id', ventaId);
+    const { error } = await supabase.rpc('cancelar_venta', { p_venta_id: ventaId });
     if (error) throw new Error(error.message);
     await fetchVentas();
-    // Nota: cancelar no revierte stock automáticamente por diseño;
-    // hacer un ajuste manual en Inventario si corresponde.
   }
 
-  return { ventas, loading, error, crearVenta, cancelarVenta, refetch: fetchVentas };
+  async function obtenerVentaPorId(ventaId: number): Promise<Venta | null> {
+    const { data, error } = await supabase
+      .from('ventas')
+      .select(SELECT_VENTA_COMPLETA)
+      .eq('id', ventaId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as unknown as Venta | null;
+  }
+
+  function nombreVenta(venta: Venta): string {
+    return venta.clientes?.nombre ? `Venta a ${venta.clientes.nombre}` : `Venta #${venta.id}`;
+  }
+
+  return { ventas, loading, error, crearVenta, cancelarVenta, obtenerVentaPorId, nombreVenta, refetch: fetchVentas };
 }

@@ -2,30 +2,60 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Caja, CajaDestino, MovimientoFinanciero } from '@/types/database';
 
+// Resumen agregado para el "Resumen de ganancias" de Finanzas.
+// Sale de un RPC (resumen_financiero) que calcula todo en SQL — un solo
+// round-trip en lugar de traer miles de filas al cliente.
+export interface ResumenFinanciero {
+  ventas_brutas: number;
+  costo_productos_vendidos: number;
+  ingresos_consignaciones: number;
+  otros_ingresos: number;
+  egresos_gasto_manual: number;
+  // Compra de mercadería: es inversión, NO gasto operativo. Se muestra aparte
+  // para no castigar la "Ganancia neta" cuando se estockea el almacén.
+  egresos_compra_inventario: number;
+  egresos_adelanto: number;
+  egresos_nomina: number;
+  egresos_venta_cancelada: number;
+  // Stock actual a costo: el dinero "guardado" en mercadería.
+  valor_inventario: number;
+}
+
 export function useFinanzas() {
   const [cajas, setCajas] = useState<Caja[]>([]);
   const [movimientos, setMovimientos] = useState<MovimientoFinanciero[]>([]);
+  const [resumen, setResumen] = useState<ResumenFinanciero | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [{ data: cajasData, error: errCajas }, { data: movData, error: errMov }] = await Promise.all([
+    const [
+      { data: cajasData, error: errCajas },
+      { data: movData, error: errMov },
+      { data: resumenData, error: errResumen },
+    ] = await Promise.all([
       supabase.from('cajas').select('*'),
-      supabase
-        .from('movimientos_financieros')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(200),
+      supabase.from('movimientos_financieros').select('*').order('created_at', { ascending: false }).limit(200),
+      supabase.rpc('resumen_financiero'),
     ]);
 
-    // Si el usuario es 'empleado', RLS ya filtra filas de caja 'personal' automáticamente.
     if (errCajas) setError(errCajas.message);
     else setCajas(cajasData as Caja[]);
 
     if (errMov) setError(errMov.message);
     else setMovimientos(movData as MovimientoFinanciero[]);
 
+    // El resumen falla sin tumbar la pantalla: podría faltar el RPC si la
+    // migración no se corrió, así que degradamos a null.
+    if (errResumen) {
+      console.warn('No se pudo cargar el resumen financiero:', errResumen.message);
+      setResumen(null);
+    } else {
+      setResumen((resumenData as unknown as ResumenFinanciero) ?? null);
+    }
+
+    if (!errCajas && !errMov) setError(null);
     setLoading(false);
   }, []);
 
@@ -37,79 +67,37 @@ export function useFinanzas() {
     return cajas.find((c) => c.tipo === tipo)?.saldo_actual ?? 0;
   }
 
-  // Registra un movimiento manual (gasto o ingreso extra) en cualquiera de las dos cajas.
-  // Este es el punto único para "gastos" e "ingresos extra" del módulo Finanzas
-  // (las ventas NUNCA pasan por aquí: siempre van a caja empresa vía trigger de BD).
+  // Ambas operaciones van por RPC transaccional en la BD (validan rol
+  // admin, saldo y actualizan movimiento + saldo en una sola transacción;
+  // antes eran varias escrituras sueltas que podían quedar a medias).
   async function registrarMovimientoManual(
-    caja: CajaDestino,
-    tipo: 'ingreso' | 'egreso',
-    monto: number,
-    categoria: string,
-    descripcion: string
+    caja: CajaDestino, tipo: 'ingreso' | 'egreso', monto: number, categoria: string, descripcion: string
   ) {
-    const caja_id = cajas.find((c) => c.tipo === caja)?.id;
-    if (!caja_id) throw new Error('Caja no encontrada');
-
-    const { error: errMov } = await supabase.from('movimientos_financieros').insert({
-      caja_id,
-      tipo,
-      monto,
-      categoria,
-      descripcion,
+    const { error } = await supabase.rpc('registrar_movimiento_manual', {
+      p_caja_tipo: caja,
+      p_tipo: tipo,
+      p_monto: monto,
+      p_categoria: categoria,
+      p_descripcion: descripcion,
     });
-    if (errMov) throw new Error(errMov.message);
-
-    const nuevoSaldo = tipo === 'ingreso' ? saldoDe(caja) + monto : saldoDe(caja) - monto;
-    const { error: errUpdate } = await supabase
-      .from('cajas')
-      .update({ saldo_actual: nuevoSaldo })
-      .eq('id', caja_id);
-    if (errUpdate) throw new Error(errUpdate.message);
-
+    if (error) throw new Error(error.message);
     await fetchAll();
   }
 
-  // Transferencia interna dueño Empresa -> Personal (retiro) o viceversa (aporte).
-  // Es la ÚNICA vía permitida de mover dinero entre cajas, dejando rastro auditable.
   async function transferirEntreCajas(origen: CajaDestino, destino: CajaDestino, monto: number, descripcion: string) {
     if (origen === destino) throw new Error('Origen y destino no pueden ser iguales');
-
-    const cajaOrigenId = cajas.find((c) => c.tipo === origen)?.id;
-    const cajaDestinoId = cajas.find((c) => c.tipo === destino)?.id;
-    if (!cajaOrigenId || !cajaDestinoId) throw new Error('Caja no encontrada');
-
-    const { error: errOrigen } = await supabase.from('movimientos_financieros').insert({
-      caja_id: cajaOrigenId,
-      tipo: 'transferencia_interna',
-      monto,
-      categoria: `transferencia_a_${destino}`,
-      descripcion,
+    const { error } = await supabase.rpc('transferir_cajas', {
+      p_origen: origen,
+      p_destino: destino,
+      p_monto: monto,
+      p_descripcion: descripcion,
     });
-    if (errOrigen) throw new Error(errOrigen.message);
-
-    const { error: errDestino } = await supabase.from('movimientos_financieros').insert({
-      caja_id: cajaDestinoId,
-      tipo: 'transferencia_interna',
-      monto,
-      categoria: `transferencia_desde_${origen}`,
-      descripcion,
-    });
-    if (errDestino) throw new Error(errDestino.message);
-
-    await supabase.from('cajas').update({ saldo_actual: saldoDe(origen) - monto }).eq('id', cajaOrigenId);
-    await supabase.from('cajas').update({ saldo_actual: saldoDe(destino) + monto }).eq('id', cajaDestinoId);
-
+    if (error) throw new Error(error.message);
     await fetchAll();
   }
 
   return {
-    cajas,
-    movimientos,
-    loading,
-    error,
-    saldoDe,
-    registrarMovimientoManual,
-    transferirEntreCajas,
-    refetch: fetchAll,
+    cajas, movimientos, resumen, loading, error,
+    saldoDe, registrarMovimientoManual, transferirEntreCajas, refetch: fetchAll,
   };
 }
